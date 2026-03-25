@@ -1,0 +1,42 @@
+[
+  {
+    "question": "Install Git on Ubuntu using apt-get.",
+    "hint": "You may need to update the package list first.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n# Check if git is installed and functional\ngit --version >/dev/null 2>&1 && exit 0 || exit 1"
+  },
+  {
+    "question": "Set your global Git user.name to 'Alice Example'.",
+    "hint": "Use: git config --global user.name '<name>'",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/binbash\nNAME=$(git config --global --get user.name 2>/dev/null)\nif [ \"$NAME\" = \"Alice Example\" ]; then\n    exit 0\nelse\n    exit 1\nfi"
+  },
+  {
+    "question": "Set your global Git user.email to 'alice@example.com'.",
+    "hint": "Use: git config --global user.email '<email>'",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/binbash\nEMAIL=$(git config --global --get user.email 2>/dev/null)\nif [ \"$EMAIL\" = \"alice@example.com\" ]; then\n    exit 0\nelse\n    exit 1\nfi"
+  },
+  {
+    "question": "Configure Git to use 'main' as the default branch for new repositories.",
+    "hint": "Use: git config --global init.defaultBranch main",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/binbash\nBRANCH=$(git config --global --get init.defaultBranch 2>/dev/null)\nif [ \"$BRANCH\" = \"main\" ]; then\n    exit 0\nelse\n    exit 1\nfi"
+  },
+  {
+    "question": "Verify your Git configuration by listing all settings and confirming user.name, user.email, and init.defaultBranch are correct.",
+    "hint": "Run: git config --list",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/binbash\nOUTPUT=$(git config --list 2>/dev/null)\nif echo \"$OUTPUT\" | grep -q \"^user.name=Alice Example$\" && \\\n   echo \"$OUTPUT\" | grep -q \"^user.email=alice@example.com$\" && \\\n   echo \"$OUTPUT\" | grep -q \"^init.defaultBranch=main$\"; then\n    exit 0\nelse\n    exit 1\nfi"
+  }
+]

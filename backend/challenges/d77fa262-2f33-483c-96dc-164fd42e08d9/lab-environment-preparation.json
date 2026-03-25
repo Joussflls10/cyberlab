@@ -1,0 +1,38 @@
+[
+  {
+    "question": "Create a directory named 'lab' in your home directory, and inside it create a subdirectory named 'vms'.",
+    "hint": "Use mkdir -p",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -d \"/home/student/lab/vms\" ]; then\n    exit 0\nelse\n    exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a VMX file named 'testvm.vmx' inside ~/lab/vms with at least the following line: displayName = \\\"testvm\\\"",
+    "hint": "You can use a heredoc or echo to create the file.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/binbash\nFILE=\"/home/student/lab/vms/testvm.vmx\"\nif [ -f \"$FILE\" ] && grep -q 'displayName = \"testvm\"' \"$FILE\"; then\n    exit 0\nelse\n    exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Register the VM with VMware Workstation using 'vmrun -T ws add ~/lab/vms/testvm.vmx' and then start it in headless mode with 'vmrun -T ws start ~/lab/vms/testvm.vmx nogui'.",
+    "hint": "Ensure vmrun is in your PATH before running the commands.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nVMX=\"/home/student/lab/vms/testvm.vmx\"\nif vmrun -T ws list 2>/dev/null | grep -q \"$VMX\"; then\n    STATE=$(vmrun -T ws getState \"$VMX\" 2>/dev/null)\n    if [ \"$STATE\" = \"powered on\" ]; then\n        exit 0\n    fi\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Verify that the VM has booted by searching its vmware.log for a line containing 'Guest operating system' and save the output to ~/lab/vms/boot_check.txt.",
+    "hint": "Run: grep -i 'Guest operating system' ~/lab/vms/testvm/vmware.log > ~/lab/vms/boot_check.txt",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nFILE=\"/home/student/lab/vms/boot_check.txt\"\nif [ -s \"$FILE\" ]; then\n    exit 0\nelse\n    exit 1\nfi",
+    "expected_output": null
+  }
+]

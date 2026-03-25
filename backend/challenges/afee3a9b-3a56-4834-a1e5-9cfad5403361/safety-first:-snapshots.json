@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create a snapshot of the Ubuntu VM named LABO02_BASELINE_START using virsh.",
+    "hint": "Use virsh snapshot-create-as --domain ubuntu-vm --name LABO02_BASELINE_START --atomic",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list ubuntu-vm | grep -q LABO02_BASELINE_START; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a snapshot of the Rocky VM named LABO02_BASELINE_START using virsh.",
+    "hint": "Use virsh snapshot-create-as --domain rocky-vm --name LABO02_BASELINE_START --atomic",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list rocky-vm | grep -q LABO02_BASELINE_START; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a snapshot of the Windows VM named LABO02_BASELINE_START using virsh.",
+    "hint": "Use virsh snapshot-create-as --domain windows-vm --name LABO02_BASELINE_START --atomic",
+    "type": "command",
+    "sandbox_image": "kali-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list windows-vm | grep -q LABO02_BASELINE_START; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  }
+]

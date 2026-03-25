@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Install ansible using dnf package manager",
+    "hint": "Use the -y flag to automatically answer yes to prompts",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nrpm -q ansible > /dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Verify ansible installation by checking its version",
+    "hint": "The command should output version information without errors",
+    "type": "output",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nansible --version | grep -q 'ansible' && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Create a playbook named site.yml that installs nginx on localhost",
+    "hint": "The playbook should use the yum module for package installation",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f /root/site.yml ] && grep -q 'nginx' /root/site.yml && grep -q 'hosts: localhost' /root/site.yml && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Run the ansible playbook site.yml on localhost",
+    "hint": "Remember to use the full path to the playbook if not in current directory",
+    "type": "output",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ngrep -q 'changed=1' /var/log/ansible.log 2>/dev/null && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Create an ansible.cfg file that disables host key checking",
+    "hint": "Look for the host_key_checking parameter in ansible configuration",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\n[ -f /etc/ansible/ansible.cfg ] && grep -q 'host_key_checking = False' /etc/ansible/ansible.cfg && exit 0 || exit 1",
+    "expected_output": null
+  }
+]

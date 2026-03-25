@@ -1,0 +1,65 @@
+[
+  {
+    "question": "Clone the ansible-examples GitHub repository into a directory named ansible-project in your home folder.",
+    "hint": "Use git clone https://github.com/ansible/ansible-examples.git ansible-project",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -d \"$HOME/ansible-project\" ] && [ -d \"$HOME/ansible-project/.git\" ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Inside the cloned ansible-project directory, create a directory named playbooks.",
+    "hint": "Run mkdir playbooks while inside ~/ansible-project",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -d \"$HOME/ansible-project/playbooks\" ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create the nested directory inventories/lab inside the ansible-project directory.",
+    "hint": "Use mkdir -p inventories/lab",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ -d \"$HOME/ansible-project/inventories/lab\" ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a directory named group_vars inside the ansible-project directory.",
+    "hint": "Run mkdir group_vars",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ -d \"$HOME/ansible-project/group_vars\" ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a directory named host_vars inside the ansible-project directory.",
+    "hint": "Run mkdir host_vars",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nif [ -d \"$HOME/ansible-project/host_vars\" ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create an ansible.cfg file in the root of the ansible-project repository with at least a [defaults] section.",
+    "hint": "Touch ansible.cfg and add '[defaults]' inside it",
+    "type": "file",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nif [ -f \"$HOME/ansible-project/ansible.cfg\" ] && grep -q \"^\\[defaults\\]\" \"$HOME/ansible-project/ansible.cfg\"; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a requirements.yml file in the ansible-project root that includes the geerlingguy.nginx role.",
+    "hint": "Add a line: - src: geerlingguy.nginx",
+    "type": "file",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nif [ -f \"$HOME/ansible-project/requirements.yml\" ] && grep -q \"geerlingguy.nginx\" \"$HOME/ansible-project/requirements.yml\"; then exit 0; else exit 1; fi",
+    "expected_output": null
+  }
+]

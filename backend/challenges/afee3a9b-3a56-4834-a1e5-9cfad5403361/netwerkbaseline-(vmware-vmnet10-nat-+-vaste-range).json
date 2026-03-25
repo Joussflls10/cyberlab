@@ -1,0 +1,38 @@
+[
+  {
+    "question": "On the Ubuntu container, configure the eth0 interface with a static IP address 172.16.120.10/24.",
+    "hint": "You can use nmcli or ip addr add. Remember to bring the interface up if needed.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nIP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' || true)\nif [[ \"$IP\" == \"172.16.120.10\" ]]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "On the Rocky container, configure the eth0 interface with a static IP address 172.16.120.11/24.",
+    "hint": "Use nmcli or ip commands to set the address and prefix.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nIP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' || true)\nif [[ \"$IP\" == \"172.16.120.11\" ]]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "On the Ubuntu container, set the default gateway to 172.16.120.1 and configure DNS to use 1.1.1.1.",
+    "hint": "Use ip route add default via 172.16.120.1 and add 'nameserver 1.1.1.1' to /etc/resolv.conf.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nGATEWAY=$(ip route show | grep '^default' | awk '{print $3}')\nDNSOK=$(grep -q 'nameserver 1.1.1.1' /etc/resolv.conf && echo yes || echo no)\nif [[ \"$GATEWAY\" == \"172.16.120.1\" && \"$DNSOK\" == \"yes\" ]]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Verify network connectivity: ping the gateway (172.16.120.1) and an external host (8.8.8.8) from the Ubuntu container, each with two packets.",
+    "hint": "Run ping -c 2 172.16.120.1 and ping -c 2 8.8.8.8. Both should succeed.",
+    "type": "output",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nping -c 2 172.16.120.1 >/dev/null 2>&1\nGW=$?\nping -c 2 8.8.8.8 >/dev/null 2>&1\nEXT=$?\nif [[ $GW -eq 0 && $EXT -eq 0 ]]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  }
+]

@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Install and enable the OpenSSH server on the Ubuntu container.",
+    "hint": "Use apt to install openssh-server and then start/enable the service.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nsystemctl is-active ssh >/dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Create a user named 'devuser' with password 'DevPass123!' and add this user to the sudo group.",
+    "hint": "Use adduser or useradd to create the user, set the password with chpasswd, and add to sudo with usermod.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nid -nG devuser | grep -q sudo && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Generate an SSH key pair for devuser (Ed25519, no passphrase) and place the public key in devuser's authorized_keys file.",
+    "hint": "Run ssh-keygen as devuser, then append the public key to ~/.ssh/authorized_keys and set correct permissions.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ -f /home/devuser/.ssh/id_ed25519 ] && [ -f /home/devuser/.ssh/id_ed25519.pub ]; then\n  grep -qf /home/devuser/.ssh/id_ed25519.pub /home/devuser/.ssh/authorized_keys && exit 0 || exit 1\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Create an SSH client configuration file at /home/devuser/.ssh/config that defines a host alias 'devubuntu' connecting to localhost as devuser using the private key you just generated.",
+    "hint": "The config should contain Host devubuntu, HostName 127.0.0.1, User devuser, and IdentityFile ~/.ssh/id_ed25519.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/binbash\nif [ -f /home/devuser/.ssh/config ]; then\n  grep -q \"Host devubuntu\" /home/devuser/.ssh/config && \\\n  grep -q \"HostName 127.0.0.1\" /home/devuser/.ssh/config && \\\n  grep -q \"User devuser\" /home/devuser/.ssh/config && \\\n  grep -q \"IdentityFile.*id_ed25519\" /home/devuser/.ssh/config && exit 0 || exit 1\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Test the SSH connection using the 'devubuntu' alias and run 'git --version' on the remote Ubuntu system. The command should succeed and show a git version string.",
+    "hint": "Use ssh with the alias, disable host key checking for this test, and verify the output contains 'git version'.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null devubuntu \"git --version\" 2>/dev/null | grep -q git && exit 0 || exit 1",
+    "expected_output": null
+  }
+]

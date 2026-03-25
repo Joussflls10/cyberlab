@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Configure the network interface eth0 with static IP address 172.16.120.10/24 and bring it up.",
+    "hint": "Use ip addr add and ip link set up.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif ip -o addr show eth0 | grep -q '172\\.16\\.120\\.10/24'; then\n    if ip link show eth0 | grep -q 'state UP'; then\n        exit 0\n    fi\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Set the default gateway to 172.16.120.1 for interface eth0.",
+    "hint": "Use ip route add default via.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif ip route show default | grep -q 'via 172\\.16\\.120\\.1 dev eth0'; then\n    exit 0\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Configure DNS server to 1.1.1.1 by ensuring /etc/resolv.conf contains a nameserver line with 1.1.1.1.",
+    "hint": "You can echo the line into the file.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif grep -q '^nameserver 1\\.1\\.1\\.1' /etc/resolv.conf; then\n    exit 0\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Install dnsmasq and configure it to provide DHCP addresses from 172.16.120.100 to 172.16.120.254 with a lease time of 12 hours.",
+    "hint": "Install package, edit /etc/dnsmasq.conf, add dhcp-range line, then restart service.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif dpkg -l | grep -q '^ii  dnsmasq'; then\n    if grep -q '^dhcp-range=172\\.16\\.120\\.100,172\\.16\\.120\\.254,12h' /etc/dnsmasq.conf; then\n        exit 0\n    fi\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Verify that you can reach the gateway (172.16.120.1) by sending two ICMP echo requests and receiving replies.",
+    "hint": "Use ping -c 2 172.16.120.1",
+    "type": "output",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif ping -c 2 172.16.120.1 > /dev/null 2>&1; then\n    exit 0\nfi\nexit 1",
+    "expected_output": null
+  }
+]

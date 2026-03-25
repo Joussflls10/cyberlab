@@ -1,0 +1,56 @@
+[
+  {
+    "question": "Installeer Ansible op de Rocky Linux host met behulp van dnf.",
+    "hint": "Gebruik het dnf commando of de ansible.builtin.dnf module met become.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nansible --version > /dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Maak een Ansible playbook bestand op /root/playbooks/labo02_bootstrap_rocky.yml dat Docker installeert, de service start en enable, extra tools (nmap, mc) installeert, SELinux op permissive zet, de hostname instelt op een mythologische figuur (lowercase, geen spaties) en een idempotent bestand /root/test.txt aanmaakt.",
+    "hint": "Gebruik overal FQCN (bijv. ansible.builtin.dnf, ansible.builtin.service, ansible.builtin.command) en become waar rootrechten nodig zijn.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/binbash\nif [ ! -f /root/playbooks/labo02_bootstrap_rocky.yml ]; then exit 1; fi\ngrep -q \"ansible.builtin.dnf\" /root/playbooks/labo02_bootstrap_rocky.yml || exit 1\ngrep -q \"become: true\" /root/playbooks/labo02_bootstrap_rocky.yml || exit 1\ngrep -q \"ansible.builtin.service\" /root/playbooks/labo02_bootstrap_rocky.yml || exit 1\ngrep -q \"ansible.builtin.command\" /root/playbooks/labo02_bootstrap_rocky.yml || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Voer het playbook uit dat je in de vorige stap hebt gemaakt.",
+    "hint": "Gebruik de commando: ansible-playbook /root/playbooks/labo02_bootstrap_rocky.yml",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nsystemctl is-active docker || exit 1\nsystemctl is-enabled docker || exit 1\nrpm -q nmap > /dev/null 2>&1 || exit 1\nrpm -q mc > /dev/null 2>&1 || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Controleer of SELinux is ingesteld op permissief en dit behoudt blijft na een hypothetische reboot.",
+    "hint": "Controleer zowel de runtime status met getenforce als de configuratie in /etc/selinux/config.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\n[ \"$(getenforce)\" = \"Permissive\" ] || exit 1\ngrep -q \"^SELINUX=permissive\" /etc/selinux/config || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Verifieer dat de hostname is ingesteld op een geldige mythologische/magische figuur (lowercase, geen spaties).",
+    "hint": "De hostname mag alleen kleine letters bevatten, geen cijfers, geen spaties of speciale tekens.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nhostname | grep -q '^[a-z][a-z]*$' || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Bevestig dat het bestand /root/test.txt bestaat en niet leeg is (idempotent aangemaakt door het playbook).",
+    "hint": "Het bestand moet bestaan nadat het playbook is uitgevoerd en mag geen zero-byte grootte hebben.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n[ -s /root/test.txt ] || exit 1\nexit 0\n",
+    "expected_output": null
+  }
+]

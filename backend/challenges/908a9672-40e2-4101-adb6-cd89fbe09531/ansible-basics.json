@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Install Ansible on the Rocky Linux system using dnf.",
+    "hint": "Run the command with sudo privileges if needed.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nansible --version > /dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Create a playbook named site.yml in the current directory that installs the nginx package using the yum module.",
+    "hint": "Use the ansible.builtin.yum module with name: nginx and state: present.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -f site.yml ]; then\n  if grep -q \"name.*nginx\" site.yml && grep -q \"state.*present\" site.yml; then\n    exit 0\n  fi\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Run the site.yml playbook against localhost to install nginx.",
+    "hint": "Use ansible-playbook site.yml.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nrpm -q nginx > /dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Ensure the nginx service is started and enabled after the playbook run. Run the appropriate command to verify both statuses.",
+    "hint": "You can run two commands: systemctl is-active nginx and systemctl is-enabled nginx.",
+    "type": "output",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nout=$(systemctl is-active nginx)\nout2=$(systemctl is-enabled nginx)\nif [ \"$out\" = \"active\" ] && [ \"$out2\" = \"enabled\" ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Update the site.yml playbook to also start and enable the nginx service using the service module after installing the package.",
+    "hint": "Add a task with ansible.builtin.service, name: nginx, state: started, enabled: true.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nif [ -f site.yml ]; then\n  if grep -q \"name.*nginx\" site.yml && grep -q \"state.*present\" site.yml && grep -q \"ansible.builtin.service\" site.yml && grep -q \"state.*started\" site.yml && grep -q \"enabled.*true\" site.yml; then\n    exit 0\n  fi\nfi\nexit 1",
+    "expected_output": null
+  }
+]

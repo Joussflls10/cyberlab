@@ -1,0 +1,56 @@
+[
+  {
+    "question": "Add the official Ansible PPA repository to your Ubuntu system using apt-add-repository.",
+    "hint": "Use the command: sudo apt-add-repository ppa:ansible/ansible -y",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif grep -r \"ppa:ansible/ansible\" /etc/apt/sources.list.d/ > /dev/null 2>&1; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Update the package list to include the newly added Ansible PPA.",
+    "hint": "Run: sudo apt update",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif apt-cache policy ansible | grep -q \"Candidate:\"; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Install the ansible package from the PPA.",
+    "hint": "Run: sudo apt install -y ansible",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif command -v ansible > /dev/null 2>&1 && ansible --version > /dev/null 2>&1; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Verify that ansible is installed correctly by checking its version.",
+    "hint": "Run: ansible --version",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif ansible --version > /dev/null 2>&1; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Verify that ansible-playbook is installed correctly by checking its version.",
+    "hint": "Run: ansible-playbook --version",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif ansible-playbook --version > /dev/null 2>&1; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Verify that ansible-galaxy is installed correctly by checking its version.",
+    "hint": "Run: ansible-galaxy --version",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif ansible-galaxy --version > /dev/null 2>&1; then exit 0; else exit 1; fi",
+    "expected_output": null
+  }
+]

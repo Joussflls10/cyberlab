@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Clone the repository https://github.com/example/ansible-demo.git into ~/ansible-project",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -d ~/ansible-project ] && [ -d ~/ansible-project/.git ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Inside ~/ansible-project, create the directories playbooks/, inventories/lab/, group_vars/, host_vars/",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ndirs=(\"playbooks\" \"inventories/lab\" \"group_vars\" \"host_vars\")\nfor d in \"${dirs[@]}\"; do\n  if [ ! -d ~/ansible-project/$d ]; then\n    exit 1\n  fi\ndone\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create a file ansible.cfg in the root of ~/ansible-project with the following content:\\n[defaults]\\ninventory = ./inventories/lab",
+    "hint": null,
+    "type": "file",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ -f ~/ansible-project/ansible.cfg ]; then\n  if grep -q 'inventory = ./inventories/lab' ~/ansible-project/ansible.cfg; then\n    exit 0\n  fi\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Create a file requirements.yml in the root of ~/ansible-project with the following content:\\n---\\n- src: geerlingguy.apache\\n  version: \\\"5.0.0\\\"",
+    "hint": null,
+    "type": "file",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ -f ~/ansible-project/requirements.yml ]; then\n  if grep -q 'src: geerlingguy.apache' ~/ansible-project/requirements.yml && grep -q 'version: \\\"5.0.0\\\"' ~/ansible-project/requirements.yml; then\n    exit 0\n  fi\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Run `grep 'inventory =' ~/ansible-project/ansible.cfg` and verify the output shows the correct inventory path.",
+    "hint": null,
+    "type": "output",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\noutput=$(grep 'inventory =' ~/ansible-project/ansible.cfg 2>/dev/null)\nif [ \"$output\" = \"inventory = ./inventories/lab\" ]; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": "inventory = ./inventories/lab"
+  }
+]

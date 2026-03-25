@@ -1,0 +1,56 @@
+[
+  {
+    "question": "Install Ansible on the control node if it is not already installed.",
+    "hint": "Use the package manager for Rocky Linux.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif command -v ansible >/dev/null 2>&1; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Run an ad-hoc Ansible ping module to verify connectivity to all hosts defined in the default inventory.",
+    "hint": "Use the command: ansible all -m ping",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nansible all -m ping 2>&1 | grep -q 'SUCCESS' && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Save the output of the ad-hoc ping command to a file named /tmp/ping_result.txt.",
+    "hint": "Use > to redirect stdout.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ -f /tmp/ping_result.txt ]; then grep -q 'SUCCESS' /tmp/ping_result.txt && exit 0 || exit 1; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Run an ad-hoc command to check the SSH server version on the remote host using the ansible command module.",
+    "hint": "Use: ansible all -a 'ssh -V'",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\noutput=$(ansible all -a 'ssh -V' 2>&1)\nif echo \"$output\" | grep -q 'OpenSSH'; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Gather facts from the remote host and verify that the distribution is Rocky Linux.",
+    "hint": "Use: ansible all -m setup -a 'filter=ansible_distribution'",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\noutput=$(ansible all -m setup -a 'filter=ansible_distribution' 2>&1)\nif echo \"$output\" | grep -q '\"ansible_distribution\": \"Rocky\"'; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Use an ad-hoc Ansible command to install the 'tree' package on the Rocky node using the yum module.",
+    "hint": "Use: ansible all -m yum -a 'name=tree state=present'",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nansible all -m yum -a 'name=tree state=present' > /dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  }
+]

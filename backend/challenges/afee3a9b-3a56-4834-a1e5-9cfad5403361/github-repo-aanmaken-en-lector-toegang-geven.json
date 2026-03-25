@@ -1,0 +1,26 @@
+[
+  {
+    "question": "Create a private GitHub repository named iac-ansible-2526-voornaam-achternaam with a README initialized.",
+    "hint": "Use the GitHub CLI: gh repo create <name> --private --confirm --add-readme",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nset -euo pipefail\nOWNER=$(gh api user --jq .login)\nREPO=\"iac-ansible-2526-voornaam-achternaam\"\n# Check repo exists and is private\nRESPONSE=$(gh api repos/$OWNER/$REPO --json private 2>/dev/null || echo '{\"private\":false}')\nPRIVATE=$(echo \"$RESPONSE\" | jq -r .private)\nif [[ \"$PRIVATE\" != \"true\" ]]; then\n  echo \"Repo not private or does not exist\"\n  exit 1\nfi\n# Check README.md exists in default branch\nCONTENT=$(gh api repos/$OWNER/$REPO/contents/README.md 2>/dev/null || echo '{}')\nif [[ \"$CONTENT\" == \"{}\" ]]; then\n  echo \"README.md not found\"\n  exit 1\nfi\n exit 0"
+  },
+  {
+    "question": "Add the user p127280 as a collaborator with push permission to the repository iac-ansible-2526-voornaam-achternaam.",
+    "hint": "Use: gh repo add-collaborator <owner>/<repo> p127280 --permission push",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nset -euo pipefail\nOWNER=$(gh api user --jq .login)\nREPO=\"iac-ansible-2526-voornaam-achternaam\"\n# Check if collaborator exists and permission is push\nPERM=$(gh api repos/$OWNER/$REPO/collaborators/p127280 --jq .permission 2>/dev/null || echo \"none\")\nif [[ \"$PERM\" == \"push\" ]]; then\n  exit 0\nelse\n  echo \"Collaborator p127280 not found or permission is $PERM\"\n  exit 1\nfi\n"
+  },
+  {
+    "question": "Verify that the repository iac-ansible-2526-voornaam-achternaam is private, contains a README, and has p127280 as a collaborator with push permission.",
+    "hint": "Combine checks from previous steps; you may run multiple gh api calls.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nset -euo pipefail\nOWNER=$(gh api user --jq .login)\nREPO=\"iac-ansible-2526-voornaam-achternaam\"\n# 1. Private check\nRESPONSE=$(gh api repos/$OWNER/$REPO --json private 2>/dev/null || echo '{\"private\":false}')\nPRIVATE=$(echo \"$RESPONSE\" | jq -r .private)\nif [[ \"$PRIVATE\" != \"true\" ]]; then\n  echo \"Repo not private\"\n  exit 1\nfi\n# 2. README exists\nCONTENT=$(gh api repos/$OWNER/$REPO/contents/README.md 2>/dev/null || echo '{}')\nif [[ \"$CONTENT\" == \"{}\" ]]; then\n  echo \"README missing\"\n  exit 1\nfi\n# 3. Collaborator permission\nPERM=$(gh api repos/$OWNER/$REPO/collaborators/p127280 --jq .permission 2>/dev/null || echo \"none\")\nif [[ \"$PERM\" != \"push\" ]]; then\n  echo \"Collaborator p127280 not push permission (got $PERM)\"\n  exit 1\nfi\n echo \"All checks passed\"\n exit 0\n"
+  }
+]

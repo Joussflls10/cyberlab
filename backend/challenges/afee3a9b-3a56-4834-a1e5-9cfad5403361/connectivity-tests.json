@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Run an Ansible ad-hoc ping command against localhost and verify it succeeds.",
+    "hint": "Use the ansible command with -m ping.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif ansible localhost -m ping 2>/dev/null | grep -q 'pong'; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Run an ad-hoc ping against the host group 'rocky' and save the output to /tmp/ping_result.txt.",
+    "hint": "Use ansible -m ping rocky > /tmp/ping_result.txt",
+    "type": "output",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -f /tmp/ping_result.txt ] && grep -q 'pong' /tmp/ping_result.txt; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Run an ad-hoc ping against all hosts in the inventory, using the one-line output format, and count the number of successful pongs.",
+    "hint": "Use ansible all -m ping -o",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n# Count lines containing SUCCESS\ncount=$(ansible all -m ping -o 2>/dev/null | grep -c 'SUCCESS' || echo 0)\nif [ $count -gt 0 ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a custom inventory file at ~/my_inventory.ini that defines a group 'web' with host 127.0.0.1, then run an ad-hoc ping against that group using the custom inventory.",
+    "hint": "First create the file with [web]\\n127.0.0.1 ansible_connection=local, then run ansible -i ~/my_inventory.ini web -m ping",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ -f ~/my_inventory.ini ] && grep -q '\\[web\\]' ~/my_inventory.ini; then\n  if ansible -i ~/my_inventory.ini web -m ping 2>/dev/null | grep -q 'pong'; then\n    exit 0\n  fi\nfi\nexit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Run an ad-hoc ping using a specific ansible user 'testuser' and private key ~/.ssh/id_test, assuming the key exists, and verify the command executes without authentication errors.",
+    "hint": "Use ansible all -m ping -u testuser --private-key ~/.ssh/id_test",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\n# Check that the command runs (does not fail due to missing key or auth)\nif ansible all -m ping -u testuser --private-key ~/.ssh/id_test 2>/dev/null; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  }
+]

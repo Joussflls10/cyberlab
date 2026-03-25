@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Verify that ansible-galaxy is installed and available in the PATH.",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif command -v ansible-galaxy >/dev/null 2>&1; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a file named requirements.yml in the current directory with the following content:\\ncollections:\\n  - ansible.posix\\n  - community.general",
+    "hint": "Use a text editor or echo/cat to write the file.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -f requirements.yml ]; then\n  if grep -q 'ansible.posix' requirements.yml && grep -q 'community.general' requirements.yml; then\n    exit 0\n  fi\nfi\n exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Install the collections listed in requirements.yml using ansible-galaxy.",
+    "hint": "Run the install command with the -r flag.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nansible-galaxy collection install -r requirements.yml >/dev/null 2>&1\nif [ $? -eq 0 ]; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "List installed collections and verify that both ansible.posix and community.general appear.",
+    "hint": "Use ansible-galaxy collection list and look for the names.",
+    "type": "output",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\noutput=$(ansible-galaxy collection list 2>/dev/null)\nif echo \"$output\" | grep -q 'ansible.posix' && echo \"$output\" | grep -q 'community.general'; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Verify that a module from each collection is accessible via ansible-doc (e.g., ansible.posix.selinux and community.general.nmcli).",
+    "hint": "Run ansible-doc <module> and check success.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nif ansible-doc ansible.posix.selinux >/dev/null 2>&1 && ansible-doc community.general.nmcli >/dev/null 2>&1; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  }
+]

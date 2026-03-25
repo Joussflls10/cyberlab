@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Create a snapshot of the Ubuntu VM named 'ubuntu-vm' with the exact name LABO02_BASELINE_START.",
+    "hint": "Use virsh snapshot-create-as <domain> <snapshot-name> --disk-only --atomic",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list ubuntu-vm --name | grep -Fxq LABO02_BASELINE_START; then\n    exit 0\nelse\n    exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a snapshot of the Rocky VM named 'rocky-vm' with the exact name LABO02_BASELINE_START.",
+    "hint": "Use virsh snapshot-create-as <domain> <snapshot-name> --disk-only --atomic",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list rocky-vm --name | grep -Fxq LABO02_BASELINE_START; then\n    exit 0\nelse\n    exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a snapshot of the Windows VM named 'windows-vm' with the exact name LABO02_BASELINE_START.",
+    "hint": "Use virsh snapshot-create-as <domain> <snapshot-name> --disk-only --atomic",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list windows-vm --name | grep -Fxq LABO02_BASELINE_START; then\n    exit 0\nelse\n    exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "List snapshots for each VM (ubuntu-vm, rocky-vm, windows-vm) and verify that each contains a snapshot named LABO02_BASELINE_START.",
+    "hint": "Run virsh snapshot-list <domain> --name for each domain and check for the snapshot name.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nfor domain in ubuntu-vm rocky-vm windows-vm; do\n    if ! virsh snapshot-list \"$domain\" --name | grep -Fxq LABO02_BASELINE_START; then\n        exit 1\n    fi\ndone\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Delete the snapshot LABO02_BASELINE_START from the Rocky VM (rocky-vm).",
+    "hint": "Use virsh snapshot-delete <domain> <snapshot-name>",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list rocky-vm --name | grep -Fxq LABO02_BASELINE_START; then\n    exit 1\nelse\n    exit 0\nfi",
+    "expected_output": null
+  }
+]

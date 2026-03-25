@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Generate an SSH key pair for GitHub authentication using the Ed25519 algorithm, stored in ~/.ssh/github_id_rsa with no passphrase.",
+    "hint": "Use ssh-keygen -t ed25519 -f ~/.ssh/github_id_rsa -N \"\"",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\\nif [ -f ~/.ssh/github_id_rsa ] && [ -f ~/.ssh/github_id_rsa.pub ] && grep -q '^ssh-ed25519' ~/.ssh/github_id_rsa.pub; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Display the contents of your GitHub public key (~/.ssh/github_id_rsa.pub) to verify it was created correctly.",
+    "hint": "Run cat ~/.ssh/github_id_rsa.pub",
+    "type": "output",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\\noutput=$(cat ~/.ssh/github_id_rsa.pub 2>/dev/null) && [[ \"$output\" =~ ^ssh-ed25519 ]] && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Generate a second SSH key pair for managing Rocky Linux nodes, stored as ~/.ssh/rocky_id_rsa with Ed25519 algorithm and no passphrase.",
+    "hint": "Use ssh-keygen -t ed25519 -f ~/.ssh/rocky_id_rsa -N \"\"",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\\nif [ -f ~/.ssh/rocky_id_rsa ] && [ -f ~/.ssh/rocky_id_rsa.pub ] && grep -q '^ssh-ed25519' ~/.ssh/rocky_id_rsa.pub; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Copy the Rocky public key to the managed node at 172.16.120.11 using ssh-copy-id (you will be prompted for the user's password).",
+    "hint": "Run ssh-copy-id -i ~/.ssh/rocky_id_rsa.pub student@172.16.120.11",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\\nssh -o BatchMode=yes -o ConnectTimeout=3 student@172.16.120.11 true 2>/dev/null && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Verify that you can log in to the Rocky node without a password by running a command that prints the hostname.",
+    "hint": "Run ssh student@172.16.120.11 hostname",
+    "type": "output",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\\noutput=$(ssh -o BatchMode=yes -o ConnectTimeout=3 student@172.16.120.11 hostname 2>/dev/null) && [[ \"$output\" == \"rocky9\" ]] && exit 0 || exit 1",
+    "expected_output": null
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "question": "Installeer Git in de container en controleer dat het werkt door `git --version` uit te voeren.",
+    "hint": null,
+    "type": "output",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif git --version | grep -q \"git version\"; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Configureer je globale Git gebruikersnaam op 'Alice Example' met de juiste git config opdracht.",
+    "hint": "Gebruik `git config --global user.name 'Alice Example'`",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ \"$(git config --global user.name)\" = \"Alice Example\" ]; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Configureer je globale Git e-mailadres op 'alice@example.com'.",
+    "hint": "Gebruik `git config --global user.email 'alice@example.com'`",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ \"$(git config --global user.email)\" = \"alice@example.com\" ]; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Stel de default branch voor nieuwe repositories in op 'main'.",
+    "hint": "Gebruik `git config --global init.defaultBranch main`",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ \"$(git config --global init.defaultBranch)\" = \"main\" ]; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "question": "Configure your global Git user name and email to match your first and last name (use environment variables FIRST_NAME and LAST_NAME).",
+    "hint": "Use `git config --global user.name \"$FIRST_NAME $LAST_NAME\"` and `git config --global user.email \"${FIRST_NAME,,}.${LAST_NAME,,}@example.com\"`.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -z \"$(git config user.name)\" ] || [ -z \"$(git config user.email)\" ]; then exit 1; fi\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create a private GitHub repository named exactly iac-ansible-2526-<first_name>-<last_name> (using the FIRST_NAME and LAST_NAME environment variables) with a README initialized.",
+    "hint": "Use `gh repo create <repo-name> --private --add-readme`.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nset -e\nFIRST=\"${FIRST_NAME:-}\"\nLAST=\"${LAST_NAME:-}\"\nif [ -z \"$FIRST\" ] || [ -z \"$LAST\" ]; then exit 1; fi\nREPO_NAME=\"iac-ansible-2526-${FIRST}-${LAST}\"\nOUTPUT=$(gh repo view \"$REPO_NAME\" --json name,private 2>/dev/null)\nif [ $? -ne 0 ]; then exit 1; fi\nNAME=$(echo \"$OUTPUT\" | jq -r .name)\nPRIVATE=$(echo \"$OUTPUT\" | jq -r .private)\nif [ \"$NAME\" != \"$REPO_NAME\" ] || [ \"$PRIVATE\" != \"true\" ]; then exit 1; fi\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Add a README.md file to the repository you just created (if not already present) containing a header with the repository name, then commit and push the change.",
+    "hint": "Clone the repo, create/edit README.md, git add, git commit -m 'Add README', git push.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nset -e\nFIRST=\"${FIRST_NAME:-}\"\nLAST=\"${LAST_NAME:-}\"\nif [ -z \"$FIRST\" ] || [ -z \"$LAST\" ]; then exit 1; fi\nREPO_NAME=\"iac-ansible-2526-${FIRST}-${LAST}\"\nOWNER=$(gh api user -q .login)\nSHA=$(gh api \"/repos/${OWNER}/${REPO_NAME}/contents/README.md\" -q '.sha' 2>/dev/null)\nif [ -z \"$SHA\" ] || [ \"$SHA\" = \"null\" ]; then exit 1; fi\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Add the lecturer (username p127280) as a collaborator with push permission to your private repository.",
+    "hint": "Use `gh repo add-collaborator <repo-name> p127280 --permission push`.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\nset -e\nFIRST=\"${FIRST_NAME:-}\"\nLAST=\"${LAST_NAME:-}\"\nif [ -z \"$FIRST\" ] || [ -z \"$LAST\" ]; then exit 1; fi\nREPO_NAME=\"iac-ansible-2526-${FIRST}-${LAST}\"\nOWNER=$(gh api user -q .login)\nPERM=$(gh api \"/repos/${OWNER}/${REPO_NAME}/collaborators/p127280\" -q '.permission' 2>/dev/null)\nif [ \"$PERM\" != \"push\" ]; then exit 1; fi\nexit 0",
+    "expected_output": null
+  }
+]

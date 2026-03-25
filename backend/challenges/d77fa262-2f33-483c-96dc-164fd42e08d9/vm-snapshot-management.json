@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create a snapshot of the Ubuntu VM with the exact name LABO02_BASELINE_START using virsh.",
+    "hint": "Use virsh snapshot-create-as --domain <domain> --name <snapshot>",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list ubuntu | grep -q \"LABO02_BASELINE_START\"; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a snapshot of the Rocky VM with the exact name LABO02_BASELINE_START using virsh.",
+    "hint": "Use virsh snapshot-create-as --domain <domain> --name <snapshot>",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif virsh snapshot-list rocky | grep -q \"LABO02_BASELINE_START\"; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a snapshot of the Windows VM with the exact name LABO02_BASELINE_START using VBoxManage.",
+    "hint": "Use VBoxManage snapshot <vmname> take <snapshot>",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif VBoxManage showvminfo \"WindowsVM\" --details | grep -iq \"LABO02_BASELINE_START\"; then exit 0; else exit 1; fi",
+    "expected_output": null
+  }
+]

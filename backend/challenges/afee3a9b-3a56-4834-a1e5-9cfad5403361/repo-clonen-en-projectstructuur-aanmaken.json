@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Clone the Git repository https://github.com/ansible/ansible-examples.git into the directory /home/student/labrepo.",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif [ -d \"/home/student/labrepo/.git\" ]; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Inside the cloned repository /home/student/labrepo, create the following directories: playbooks/, inventories/lab/, group_vars/, host_vars/.",
+    "hint": null,
+    "type": "file",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nfor dir in playbooks inventories/lab group_vars host_vars; do\n  if [ ! -d \"/home/student/labrepo/$dir\" ]; then\n    exit 1\n  fi\ndone\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create an empty file named ansible.cfg in the root of the repository (/home/student/labrepo/ansible.cfg).",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif [ -f \"/home/student/labrepo/ansible.cfg\" ]; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a file requirements.yml in the repository root with the following content:\\n---\\n- src: geerlingguy.nginx\\n  version: \\\"1.0.0\\\"\\n",
+    "hint": null,
+    "type": "file",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nif grep -q '^---$' /home/student/labrepo/requirements.yml && \\\n   grep -q '^- src: geerlingguy.nginx' /home/student/labrepo/requirements.yml && \\\n   grep -q '  version: \"1.0.0\"' /home/student/labrepo/requirements.yml; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Run 'ansible-config list' inside the repository root and verify that the output shows ANSIBLE_CONFIG pointing to the ansible.cfg you created.",
+    "hint": null,
+    "type": "output",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\ncd /home/student/labrepo\noutput=$(ansible-config list 2>/dev/null)\nif echo \"$output\" | grep -q \"ANSIBLE_CONFIG=\" && echo \"$output\" | grep -q \"/home/student/labrepo/ansible.cfg\"; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  }
+]

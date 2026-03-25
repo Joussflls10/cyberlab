@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Install Ansible on the Rocky Linux system using dnf.",
+    "hint": "Use the dnf package manager with the -y flag.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nif ansible --version >/dev/null 2>&1; then\n  exit 0\nelse\n  exit 1\nfi",
+    "expected_output": null
+  },
+  {
+    "question": "Run 'ansible --version' and verify the output shows the Ansible version.",
+    "hint": "The output should start with 'ansible [core'.",
+    "type": "output",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/binbash\noutput=$(ansible --version 2>&1)\nif echo \"$output\" | grep -q \"ansible \\[core\"; then\n  exit 0\nelse\n  exit 1\nfi\n",
+    "expected_output": null
+  },
+  {
+    "question": "Create an Ansible playbook named site.yml in the current directory that installs nginx on the target host.",
+    "hint": "The playbook should target all hosts, become root, and use the dnf module to ensure nginx is present.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/binbash\nif [ -f /home/student/site.yml ]; then\n  grep -q \"hosts: all\" /home/student/site.yml && \\\n  grep -q \"become: yes\" /home/student/site.yml && \\\n  grep -q \"ansible.builtin.dnf\" /home/student/site.yml && \\\n  grep -q \"name: nginx\" /home/student/site.yml && \\\n  exit 0\nfi\nexit 1\n",
+    "expected_output": null
+  },
+  {
+    "question": "Run the site.yml playbook against localhost to install nginx.",
+    "hint": "Use ansible-playbook with -i localhost, or rely on the default inventory.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/binbash\n# Assuming the playbook has been run; check if nginx package is installed\nif rpm -q nginx >/dev/null 2>&1; then\n  exit 0\nelse\n  exit 1\nfi\n",
+    "expected_output": null
+  },
+  {
+    "question": "Verify that the nginx service is active (running) after the playbook execution.",
+    "hint": "Use systemctl to check the service status.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/binbash\nif systemctl is-active --quiet nginx; then\n  exit 0\nelse\n  exit 1\nfi\n",
+    "expected_output": null
+  }
+]
