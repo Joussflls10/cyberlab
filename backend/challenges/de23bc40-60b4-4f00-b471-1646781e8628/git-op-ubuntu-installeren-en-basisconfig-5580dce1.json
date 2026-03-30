@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create `git-op-ubuntu-installeren-en-basisconfig_concepts.txt` and explain how the concept 'Git op Ubuntu installeren en basisconfig' applies to this topic.",
+    "hint": "Write at least two lines and include the concept name explicitly.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f git-op-ubuntu-installeren-en-basisconfig_concepts.txt ] || exit 1\ngrep -qi \"Git op Ubuntu installeren en basisconfig\" git-op-ubuntu-installeren-en-basisconfig_concepts.txt || exit 1\n[ $(wc -l < git-op-ubuntu-installeren-en-basisconfig_concepts.txt) -ge 2 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `git-op-ubuntu-installeren-en-basisconfig_checklist_2.md` with at least three checklist items describing practical verification steps for topic 'Git op Ubuntu installeren en basisconfig'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f git-op-ubuntu-installeren-en-basisconfig_checklist_2.md ] || exit 1\ngrep -Ec '^- \\[ \\]' git-op-ubuntu-installeren-en-basisconfig_checklist_2.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `git-op-ubuntu-installeren-en-basisconfig_checklist_3.md` with at least three checklist items describing practical verification steps for topic 'Git op Ubuntu installeren en basisconfig'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f git-op-ubuntu-installeren-en-basisconfig_checklist_3.md ] || exit 1\ngrep -Ec '^- \\[ \\]' git-op-ubuntu-installeren-en-basisconfig_checklist_3.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  }
+]

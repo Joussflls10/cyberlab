@@ -4,9 +4,10 @@ import httpx
 import json
 import re
 import asyncio
-import os
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from config import get_settings
 
 # Model configuration - free tier models
 # Based on testing (2026-03-23):
@@ -15,9 +16,11 @@ from datetime import datetime
 # - qwen3-coder:free works for validation script review
 MODELS = {
     "grinder": "minimax/minimax-m2.5:free",
-    "challenge_gen": "nvidia/nemotron-3-super-120b-a12b:free",
-    "validator_review": "qwen/qwen3-coder:free",
-    "fallback": "meta-llama/llama-3.3-70b-instruct:free",
+    "enrichment": "minimax/minimax-m2.5:free",
+    "challenge_gen": "minimax/minimax-m2.5:free",
+    "validator_review": "minimax/minimax-m2.5:free",
+    "sanity_review": "minimax/minimax-m2.5:free",
+    "fallback": "minimax/minimax-m2.5:free",
 }
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -28,10 +31,14 @@ class OpenRouterClient:
     """Async HTTP client for OpenRouter API."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY", "")
+        settings = get_settings()
+        self.api_key = api_key or settings.OPENROUTER_API_KEY
+        if not self.api_key or not self.api_key.strip():
+            raise ValueError("OPENROUTER_API_KEY is not configured")
         self.base_url = OPENROUTER_BASE_URL
         self._last_call_time: Optional[datetime] = None
         self._rate_limit_delay = 1.0  # 1 second between calls per spec
+        self._rate_limited_until: Optional[datetime] = None
 
     async def _enforce_rate_limit(self) -> None:
         """Enforce rate limiting between API calls."""
@@ -54,6 +61,11 @@ class OpenRouterClient:
         If the primary model returns 429 (rate limited), automatically
         retries with the fallback model.
         """
+        now = datetime.utcnow()
+        if self._rate_limited_until and now < self._rate_limited_until:
+            remaining = int((self._rate_limited_until - now).total_seconds())
+            raise RuntimeError(f"OpenRouter temporarily rate-limited ({remaining}s remaining)")
+
         await self._enforce_rate_limit()
 
         # Build list of models to try (primary + fallback)
@@ -64,43 +76,63 @@ class OpenRouterClient:
             models_to_try.append(fallback_model)
 
         last_error = None
+        max_attempts_per_model = 2
         for i, model in enumerate(models_to_try):
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    resp = await client.post(
-                        f"{self.base_url}/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {self.api_key}",
-                            "Content-Type": "application/json",
-                            "HTTP-Referer": HTTP_REFERER,
-                        },
-                        json={
-                            "model": model,
-                            "max_tokens": max_tokens,
-                            "messages": [
-                                {"role": "system", "content": system},
-                                {"role": "user", "content": user},
-                            ],
-                        },
+            for attempt in range(max_attempts_per_model):
+                try:
+                    async with httpx.AsyncClient(
+                        timeout=httpx.Timeout(25.0, connect=10.0, read=25.0, write=25.0)
+                    ) as client:
+                        resp = await client.post(
+                            f"{self.base_url}/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {self.api_key}",
+                                "Content-Type": "application/json",
+                                "HTTP-Referer": HTTP_REFERER,
+                            },
+                            json={
+                                "model": model,
+                                "max_tokens": max_tokens,
+                                "messages": [
+                                    {"role": "system", "content": system},
+                                    {"role": "user", "content": user},
+                                ],
+                            },
+                        )
+                        resp.raise_for_status()
+                        data = resp.json()
+
+                        # Validate we actually got content back
+                        content = data.get("choices", [{}])[0].get("message", {}).get("content")
+                        if not content:
+                            raise ValueError(f"Model {model} returned empty content. Full response: {data}")
+
+                        return content
+                except Exception as e:
+                    last_error = e
+                    error_text = str(e)
+                    print(f"[ai_client] Model {model} failed (attempt {attempt + 1}/{max_attempts_per_model}): {e}")
+
+                    if "429" in error_text or "Too Many Requests" in error_text:
+                        # Account-level rate limits usually affect all free models,
+                        # so fail fast and let the grinder fallback logic continue.
+                        self._rate_limited_until = datetime.utcnow() + timedelta(seconds=90)
+                        break
+
+                    # Provider-side transient failures and empty payloads are worth a short retry.
+                    is_transient = (
+                        "502" in error_text
+                        or "503" in error_text
+                        or "timed out" in error_text.lower()
+                        or "returned empty content" in error_text.lower()
                     )
-                    resp.raise_for_status()
-                    data = resp.json()
-                    
-                    # Validate we actually got content back
-                    content = data.get("choices", [{}])[0].get("message", {}).get("content")
-                    if not content:
-                        raise ValueError(f"Model {model} returned empty content. Full response: {data}")
-                    
-                    return content
-            except Exception as e:
-                last_error = e
-                print(f"[ai_client] Model {model} failed: {e}")
-                if "429" in str(e):
-                    await asyncio.sleep(3)  # back off before trying fallback
-                    continue
-                # For non-429 errors, try fallback if available
-                if i < len(models_to_try) - 1:
-                    continue
+
+                    if is_transient and attempt < max_attempts_per_model - 1:
+                        await asyncio.sleep(1.5 * (attempt + 1))
+                        continue
+
+                    # Move to fallback model (if available)
+                    break
 
         # All models failed — raise so the grinder can catch and log properly
         raise RuntimeError(f"All models failed. Last error: {last_error}")

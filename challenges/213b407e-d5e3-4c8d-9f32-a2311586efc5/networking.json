@@ -1,0 +1,11 @@
+[
+  {
+    "question": "Verify Networking environment",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\nexit 0",
+    "expected_output": null
+  }
+]

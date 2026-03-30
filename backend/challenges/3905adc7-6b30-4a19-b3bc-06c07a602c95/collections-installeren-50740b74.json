@@ -1,0 +1,20 @@
+[
+  {
+    "question": "Verify `ansible-galaxy` is installed by checking its version or help output.",
+    "hint": "Try `ansible-galaxy --help` (or `ansible-galaxy --version` if supported).",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v ansible-galaxy >/dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Create a file named `topic_check.txt` that contains the text 'Collections installeren'.",
+    "hint": "Use echo with output redirection, then verify with cat.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n[ -f topic_check.txt ] && grep -q \"Collections installeren\" topic_check.txt && exit 0 || exit 1",
+    "expected_output": null
+  }
+]

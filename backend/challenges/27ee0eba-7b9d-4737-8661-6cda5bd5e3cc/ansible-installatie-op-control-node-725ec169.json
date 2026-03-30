@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Write a playbook at /root/bootstrap.yml that installs 'nmap' on localhost using ansible.builtin.dnf with become: true.",
+    "hint": "Use YAML with hosts: localhost and a tasks list using ansible.builtin.dnf.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ntest -f /root/bootstrap.yml || exit 1\ngrep -q 'ansible.builtin.dnf' /root/bootstrap.yml || exit 1\ngrep -q 'become: true' /root/bootstrap.yml || exit 1\npython3 -c \"import yaml; yaml.safe_load(open('/root/bootstrap.yml'))\" || exit 1\nansible-playbook --syntax-check /root/bootstrap.yml -i localhost, > /dev/null 2>&1 || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create /root/ansible.cfg with a [defaults] section that sets inventory=/root/inventory.yml and host_key_checking=False.",
+    "hint": "Use INI format and include both required keys.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ntest -f /root/ansible.cfg || exit 1\ngrep -q '^\\[defaults\\]' /root/ansible.cfg || exit 1\ngrep -q '^inventory\\s*=\\s*/root/inventory.yml' /root/ansible.cfg || exit 1\ngrep -q '^host_key_checking\\s*=\\s*False' /root/ansible.cfg || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create /root/inventory.yml with localhost and ansible_host, then run /root/bootstrap.yml in check mode and save output to /root/check_mode_output.txt.",
+    "hint": "Ensure inventory contains localhost with ansible_host and use ansible-playbook --check.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ntest -f /root/inventory.yml || exit 1\ngrep -q 'ansible_host:' /root/inventory.yml || exit 1\ntest -f /root/bootstrap.yml || exit 1\nansible-playbook --check /root/bootstrap.yml -i /root/inventory.yml > /root/check_mode_output.txt 2>&1 || exit 1\ngrep -Eq 'failed=0|0 failed' /root/check_mode_output.txt || exit 1\nexit 0",
+    "expected_output": null
+  }
+]

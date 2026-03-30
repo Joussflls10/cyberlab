@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create an executable script `ansible_workflow.sh` that runs `ansible --help` and stores output in `ansible_help.txt`.",
+    "hint": "Use a shebang, run `ansible --help`, redirect output, and chmod +x the script.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v ansible >/dev/null 2>&1 || exit 1\n[ -f ansible_workflow.sh ] || exit 1\ngrep -q 'ansible' ansible_workflow.sh || exit 1\n[ -x ansible_workflow.sh ] || exit 1\n[ -s ansible_help.txt ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Run `ansible-playbook --version` (or `ansible-playbook -V`) and save the output to `ansible-playbook_version.txt`.",
+    "hint": "Use shell redirection and ensure the output file is not empty.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v ansible-playbook >/dev/null 2>&1 || exit 1\n[ -s ansible-playbook_version.txt ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `ansible_notes.md` documenting how `ansible` is used in topic 'Ansible Installatie (Control Node)' with at least two bullet points.",
+    "hint": "Use markdown bullets and include topic-specific terms.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f ansible_notes.md ] || exit 1\ngrep -Eq '^- ' ansible_notes.md || exit 1\ngrep -qi 'ansible' ansible_notes.md || exit 1\nexit 0",
+    "expected_output": null
+  }
+]

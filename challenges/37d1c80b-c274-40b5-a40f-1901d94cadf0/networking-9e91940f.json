@@ -1,0 +1,11 @@
+[
+  {
+    "question": "Run `uname -a` and save the output to `networking_system_info.txt` for topic Networking.",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n[ -s networking_system_info.txt ] || exit 1\ngrep -q Linux networking_system_info.txt || exit 1\nexit 0",
+    "expected_output": null
+  }
+]

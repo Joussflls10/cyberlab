@@ -60,9 +60,9 @@ Node modules: `/root/cyberlab/frontend/node_modules/`
 ```bash
 # SSH into the container
 ssh root@192.168.0.206
-# Password: cyberlab123
+# Use SSH keys (recommended). Do not store plaintext passwords in docs.
 
-# Start backend (runs on port 8080)
+# Start backend (runs on port 18080 by default)
 /root/cyberlab/start-backend.sh
 
 # Start frontend (runs on port 5173)
@@ -75,7 +75,7 @@ ssh root@192.168.0.206
 # Backend
 cd /root/cyberlab/backend
 source venv/bin/activate
-python3 -m uvicorn main:app --host 0.0.0.0 --port 8080
+python3 -m uvicorn main:app --host 0.0.0.0 --port 18080
 
 # Frontend (in a separate terminal)
 cd /root/cyberlab/frontend
@@ -105,9 +105,9 @@ screen -S frontend
 
 Once services are running:
 
-- **Backend API:** http://192.168.0.206:8080
+- **Backend API:** http://192.168.0.206:18080
 - **Frontend UI:** http://192.168.0.206:5173
-- **API Docs:** http://192.168.0.206:8080/docs
+- **API Docs:** http://192.168.0.206:18080/docs
 
 ## OpenCode Configuration
 
@@ -174,5 +174,5 @@ npm install
 
 ---
 
-**SSH Access:** `ssh root@192.168.0.206` (password: `cyberlab123`)  
+**SSH Access:** `ssh root@192.168.0.206` (SSH key authentication recommended)  
 **SSH Key:** Your public key is authorized at `/root/.ssh/authorized_keys`

@@ -1,0 +1,11 @@
+[
+  {
+    "question": "Run `uname -a` and save the output to `linux_basics_system_info.txt` for topic Linux Basics.",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n[ -s linux_basics_system_info.txt ] || exit 1\ngrep -q Linux linux_basics_system_info.txt || exit 1\nexit 0",
+    "expected_output": null
+  }
+]

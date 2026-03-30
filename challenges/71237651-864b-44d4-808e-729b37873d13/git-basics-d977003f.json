@@ -1,0 +1,13 @@
+[
+  {
+    "question": "Initialize a Git repository in the current directory.",
+    "hint": null,
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n[ -d .git ] && exit 0 || exit 1",
+    "expected_output": null,
+    "skipped_reason": null
+  }
+]

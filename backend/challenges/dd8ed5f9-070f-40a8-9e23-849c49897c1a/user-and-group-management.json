@@ -1,0 +1,20 @@
+[
+  {
+    "question": "Run `useradd` in the terminal to verify your environment for topic 'User and Group Management'.",
+    "hint": "Use the terminal and verify the command exits successfully.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v useradd >/dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Create a file named `topic_check.txt` that contains the text 'User and Group Management'.",
+    "hint": "Use echo with output redirection, then verify with cat.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n[ -f topic_check.txt ] && grep -q \"User and Group Management\" topic_check.txt && exit 0 || exit 1",
+    "expected_output": null
+  }
+]

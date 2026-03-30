@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create `contacteer-een-organisatie_concepts.txt` and explain how the concept '\u2022 Contacteer een organisatie' applies to this topic.",
+    "hint": "Write at least two lines and include the concept name explicitly.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f contacteer-een-organisatie_concepts.txt ] || exit 1\ngrep -qi \"\u2022 Contacteer een organisatie\" contacteer-een-organisatie_concepts.txt || exit 1\n[ $(wc -l < contacteer-een-organisatie_concepts.txt) -ge 2 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `contacteer-een-organisatie_checklist_2.md` with at least three checklist items describing practical verification steps for topic '\u2022 Contacteer een organisatie'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f contacteer-een-organisatie_checklist_2.md ] || exit 1\ngrep -Ec '^- \\[ \\]' contacteer-een-organisatie_checklist_2.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `contacteer-een-organisatie_checklist_3.md` with at least three checklist items describing practical verification steps for topic '\u2022 Contacteer een organisatie'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f contacteer-een-organisatie_checklist_3.md ] || exit 1\ngrep -Ec '^- \\[ \\]' contacteer-een-organisatie_checklist_3.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  }
+]

@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create `mitre-d3fend_concepts.txt` and explain how the concept 'MITRE D3FEND' applies to this topic.",
+    "hint": "Write at least two lines and include the concept name explicitly.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f mitre-d3fend_concepts.txt ] || exit 1\ngrep -qi \"MITRE D3FEND\" mitre-d3fend_concepts.txt || exit 1\n[ $(wc -l < mitre-d3fend_concepts.txt) -ge 2 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `mitre-d3fend_checklist_2.md` with at least three checklist items describing practical verification steps for topic 'MITRE D3FEND'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f mitre-d3fend_checklist_2.md ] || exit 1\ngrep -Ec '^- \\[ \\]' mitre-d3fend_checklist_2.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `mitre-d3fend_checklist_3.md` with at least three checklist items describing practical verification steps for topic 'MITRE D3FEND'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f mitre-d3fend_checklist_3.md ] || exit 1\ngrep -Ec '^- \\[ \\]' mitre-d3fend_checklist_3.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  }
+]

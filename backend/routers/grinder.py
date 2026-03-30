@@ -2,21 +2,27 @@
 
 import os
 import uuid
+import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlmodel import Session
 
+from config import get_settings
 from database import engine
 from services.grinder import process_file_with_job
 from models.import_job import ImportJob
 
 router = APIRouter()
 
-UPLOAD_DIR = "/root/.openclaw/cyberlab/drop"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+logger = logging.getLogger(__name__)
+settings = get_settings()
 
-# Debug: Print when module is loaded
-print(f"DEBUG: grinder router loaded, upload dir: {UPLOAD_DIR}")
+UPLOAD_DIR = os.path.abspath(settings.GRINDER_UPLOAD_DIR)
+ALLOWED_EXTENSIONS = {".pdf", ".pptx"}
+MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024  # 50MB
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 class ProcessRequest(BaseModel):
@@ -49,13 +55,32 @@ async def create_import_job(file: UploadFile = File(...)) -> CreateJobResponse:
     Returns immediately with a job_id that can be used to track progress.
     """
     try:
+        filename = file.filename or ""
+        file_ext = os.path.splitext(filename)[1].lower()
+
+        if file_ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Unsupported file type '{file_ext or 'unknown'}'. "
+                    f"Allowed types: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+                ),
+            )
+
         # Save uploaded file
         file_id = str(uuid.uuid4())
-        file_ext = os.path.splitext(file.filename)[1] if file.filename else ".pdf"
         file_path = os.path.join(UPLOAD_DIR, f"{file_id}{file_ext}")
+
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty")
+        if len(content) > MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB",
+            )
         
         with open(file_path, "wb") as f:
-            content = await file.read()
             f.write(content)
         
         # Create job record
@@ -71,8 +96,15 @@ async def create_import_job(file: UploadFile = File(...)) -> CreateJobResponse:
             session.commit()
         
         # Start async processing
-        import asyncio
-        asyncio.create_task(process_file_with_job(job_id, file_path))
+        task = asyncio.create_task(process_file_with_job(job_id, file_path, source_filename=filename))
+
+        def _log_task_result(done_task: asyncio.Task) -> None:
+            try:
+                done_task.result()
+            except Exception as exc:
+                logger.exception("Import job task failed job_id=%s: %s", job_id, exc)
+
+        task.add_done_callback(_log_task_result)
         
         return CreateJobResponse(
             success=True,
@@ -80,6 +112,8 @@ async def create_import_job(file: UploadFile = File(...)) -> CreateJobResponse:
             message="Job created successfully"
         )
     
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
 
@@ -204,18 +238,37 @@ async def upload_file(file: UploadFile = File(...)):
     """
     try:
         from services.grinder import process_file
+
+        filename = file.filename or ""
+        file_ext = os.path.splitext(filename)[1].lower()
+
+        if file_ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Unsupported file type '{file_ext or 'unknown'}'. "
+                    f"Allowed types: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+                ),
+            )
         
         # Save uploaded file
         file_id = str(uuid.uuid4())
-        file_ext = os.path.splitext(file.filename)[1] if file.filename else ".pdf"
         file_path = os.path.join(UPLOAD_DIR, f"{file_id}{file_ext}")
-        
+
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty")
+        if len(content) > MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB",
+            )
+
         with open(file_path, "wb") as f:
-            content = await file.read()
             f.write(content)
         
         # Process the file
-        result = await process_file(file_path)
+        result = await process_file(file_path, source_filename=filename)
         
         return {
             "success": True,

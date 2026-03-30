@@ -1,0 +1,47 @@
+[
+  {
+    "question": "Create a file named /tmp/greeting.txt containing exactly the line 'AP Hogeslab'.",
+    "hint": "You can use echo or cat to write the file.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\\nif [ -f /tmp/greeting.txt ] && [ \"$(cat /tmp/greeting.txt)\" = \"AP Hogeslab\" ]; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Install the 'tree' package using the system's package manager.",
+    "hint": "On Rocky Linux use dnf install -y tree.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\\nif command -v tree >/dev/null 2>&1; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Create a user named 'apstudent' with a home directory and set the default shell to /bin/bash.",
+    "hint": "Use useradd with -m and -s options.",
+    "type": "command",
+    "sandbox_image": "ubuntu-wazuh",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\\nif id apstudent &>/dev/null && [ -d /home/apstudent ] && getent passwd apstudent | cut -d: -f7 | grep -qx '/bin/bash'; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Configure the SSH daemon to allow password authentication and then restart the sshd service.",
+    "hint": "Set PasswordAuthentication yes in /etc/ssh/sshd_config and run systemctl restart sshd.",
+    "type": "command",
+    "sandbox_image": "kali-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\\nif grep -i '^PasswordAuthentication' /etc/ssh/sshd_config | grep -qi 'yes' && systemctl is-active sshd | grep -q active; then exit 0; else exit 1; fi",
+    "expected_output": null
+  },
+  {
+    "question": "Set up a cron job that runs every minute and appends the current timestamp to /var/log/apcron.log.",
+    "hint": "Use crontab -e to add an entry like '* * * * * date >> /var/log/apcron.log'.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\\nif crontab -l 2>/dev/null | grep -q '/var/log/apcron.log' && [ -f /var/log/apcron.log ] && find /var/log/apcron.log -mmin -2 -readable | grep -q .; then exit 0; else exit 1; fi",
+    "expected_output": null
+  }
+]

@@ -1,0 +1,79 @@
+[
+  {
+    "question": "Install Git on your system using the package manager and verify the installation by running `git --version`",
+    "hint": "On Ubuntu/Debian-based systems, use apt to install packages",
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n# Check if git is installed and returns version\nif ! command -v git &> /dev/null; then\n    echo \"Git is not installed\"\n    exit 1\nfi\n\nOUTPUT=$(git --version 2>&1)\nif [[ $OUTPUT == \"git version\"* ]]; then\n    echo \"Git installed successfully: $OUTPUT\"\n    exit 0\nelse\n    echo \"git --version did not return expected output\"\n    exit 1\nfi",
+    "expected_output": null,
+    "skipped_reason": null
+  },
+  {
+    "question": "Configure your Git identity by setting your user name to \"Lab User\" using `git config`",
+    "hint": "Use git config with the --global flag to set user.name",
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n# Check if user.name is configured correctly\nNAME=$(git config --global user.name 2>/dev/null)\n\nif [[ \"$NAME\" == \"Lab User\" ]]; then\n    echo \"user.name correctly set to: $NAME\"\n    exit 0\nelse\n    echo \"user.name is not set to 'Lab User'. Current value: $NAME\"\n    exit 1\nfi",
+    "expected_output": null,
+    "skipped_reason": null
+  },
+  {
+    "question": "Configure your Git email by setting your user email to \"lab@example.com\" using `git config`",
+    "hint": "Use git config with the --global flag to set user.email",
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n# Check if user.email is configured correctly\nEMAIL=$(git config --global user.email 2>/dev/null)\n\nif [[ \"$EMAIL\" == \"lab@example.com\" ]]; then\n    echo \"user.email correctly set to: $EMAIL\"\n    exit 0\nelse\n    echo \"user.email is not set to 'lab@example.com'. Current value: $EMAIL\"\n    exit 1\nfi",
+    "expected_output": null,
+    "skipped_reason": null
+  },
+  {
+    "question": "Set the default branch name to \"main\" globally in Git configuration",
+    "hint": "Use git config to set the init.defaultBranch configuration option",
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n# Check if defaultBranch is set to main\nBRANCH=$(git config --global init.defaultBranch 2>/dev/null)\n\nif [[ \"$BRANCH\" == \"main\" ]]; then\n    echo \"Default branch correctly set to: $BRANCH\"\n    exit 0\nelse\n    echo \"init.defaultBranch is not set to 'main'. Current value: $BRANCH\"\n    exit 1\nfi",
+    "expected_output": null,
+    "skipped_reason": null
+  },
+  {
+    "question": "Create a new Git repository in /tmp/test_repo and verify that the user identity is applied by checking the commit author in a test commit",
+    "hint": "Initialize a repo, make a commit, and check the author info",
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n# Create test repo and verify identity\nrm -rf /tmp/test_repo\ngit init /tmp/test_repo\ncd /tmp/test_repo\necho \"test\" > test.txt\ngit add test.txt\ngit commit -m \"Initial commit\"\n\n# Check author of commit\nAUTHOR=$(git log -1 --format=\"%an <%ae>\" 2>/dev/null)\nEXPECTED=\"Lab User <lab@example.com>\"\n\nif [[ \"$AUTHOR\" == \"$EXPECTED\" ]]; then\n    echo \"Commit author correctly shows: $AUTHOR\"\n    exit 0\nelse\n    echo \"Commit author incorrect. Expected: $EXPECTED, Got: $AUTHOR\"\n    exit 1\nfi",
+    "expected_output": null,
+    "skipped_reason": null
+  },
+  {
+    "question": "Verify all your Git configuration settings are persisted by checking the global .gitconfig file",
+    "hint": "The global git config is stored in ~/.gitconfig",
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n# Check that all required settings are in ~/.gitconfig\nCONFIG_FILE=\"$HOME/.gitconfig\"\n\nif [[ ! -f \"$CONFIG_FILE\" ]]; then\n    echo \"No .gitconfig file found\"\n    exit 1\nfi\n\n# Check for required sections\nif grep -q \"name = Lab User\" \"$CONFIG_FILE\" && grep -q \"email = lab@example.com\" \"$CONFIG_FILE\" && grep -q \"defaultBranch = main\" \"$CONFIG_FILE\"; then\n    echo \"All configuration properly persisted in $CONFIG_FILE\"\n    cat \"$CONFIG_FILE\"\n    exit 0\nelse\n    echo \"Configuration file missing required settings\"\n    cat \"$CONFIG_FILE\"\n    exit 1\nfi",
+    "expected_output": null,
+    "skipped_reason": null
+  },
+  {
+    "question": "Create a new repository with default branch \"main\", create two commits, and verify the branch name is main (not master) using `git branch`",
+    "hint": "Initialize repo, make commits, then run git branch to see the default branch name",
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "hard",
+    "validation_script": "#!/bin/bash\n# Create repo and verify default branch name\nrm -rf /tmp/branch_test\ngit init /tmp/branch_test\ncd /tmp/branch_test\necho \"file1\" > file1.txt\ngit add file1.txt\ngit commit -m \"First commit\"\necho \"file2\" > file2.txt\ngit add file2.txt\ngit commit -m \"Second commit\"\n\n# Check branch name\nBRANCH=$(git branch 2>/dev/null)\nif echo \"$BRANCH\" | grep -q \"^\\* main\"; then\n    echo \"Default branch is correctly 'main': $BRANCH\"\n    exit 0\nelse\n    echo \"Default branch is NOT 'main'. Output: $BRANCH\"\n    exit 1\nfi",
+    "expected_output": null,
+    "skipped_reason": null
+  }
+]

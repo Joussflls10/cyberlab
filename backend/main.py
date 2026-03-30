@@ -5,8 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from database import create_db_and_tables, cleanup_stalled_jobs
+from config import get_settings
 from services.sandbox import cleanup_orphaned_containers
-from routers import courses, challenges, grinder, progress
+from routers import courses, challenges, grinder, progress, admin
 
 
 @asynccontextmanager
@@ -49,10 +50,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+settings = get_settings()
+
 # CORS middleware - allow frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://192.168.0.204:3000", "http://localhost:3000"],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,6 +66,7 @@ app.include_router(courses, prefix="/api/courses", tags=["courses"])
 app.include_router(challenges, prefix="/api/challenges", tags=["challenges"])
 app.include_router(grinder, prefix="/api/grinder", tags=["grinder"])
 app.include_router(progress, prefix="/api/progress", tags=["progress"])
+app.include_router(admin, prefix="/api/admin", tags=["admin"])
 
 
 @app.get("/health")

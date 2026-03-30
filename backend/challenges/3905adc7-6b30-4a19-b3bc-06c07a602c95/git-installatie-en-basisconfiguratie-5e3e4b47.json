@@ -1,0 +1,20 @@
+[
+  {
+    "question": "Verify `git` is installed by checking its version or help output.",
+    "hint": "Try `git --help` (or `git --version` if supported).",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v git >/dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  },
+  {
+    "question": "Create a file named `topic_check.txt` that contains the text 'Git installatie en basisconfiguratie'.",
+    "hint": "Use echo with output redirection, then verify with cat.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n[ -f topic_check.txt ] && grep -q \"Git installatie en basisconfiguratie\" topic_check.txt && exit 0 || exit 1",
+    "expected_output": null
+  }
+]

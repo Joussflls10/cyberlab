@@ -1,0 +1,11 @@
+[
+  {
+    "question": "Create a `linux_basics_notes.md` file with two bullets describing key commands for Linux Basics.",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\n[ -f linux_basics_notes.md ] || [ -f networking_notes.md ]",
+    "expected_output": null
+  }
+]

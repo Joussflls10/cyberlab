@@ -14,13 +14,26 @@ from database import get_session
 router = APIRouter()
 
 
+def derive_challenge_title(question: str) -> str:
+    """Generate a compact display title from challenge question text."""
+    if not question:
+        return "Challenge"
+
+    first_line = question.replace("\r", "").split("\n")[0].strip()
+    if not first_line:
+        return "Challenge"
+
+    return first_line if len(first_line) <= 90 else f"{first_line[:89].rstrip()}…"
+
+
 class StartResponse(BaseModel):
     container_id: str
     port: int
 
 
 class SubmitRequest(BaseModel):
-    user_id: str
+    container_id: str
+    user_id: str = "default"
 
 
 class SubmitResponse(BaseModel):
@@ -29,7 +42,7 @@ class SubmitResponse(BaseModel):
 
 
 class SkipRequest(BaseModel):
-    user_id: str
+    user_id: str = "default"
 
 
 @router.post("/{challenge_id}/start", response_model=StartResponse)
@@ -42,7 +55,10 @@ async def start_challenge(challenge_id: str):
             raise HTTPException(status_code=404, detail="Challenge not found")
         
         # Start sandbox - SYNCHRONOUS, do NOT await
-        result = start_sandbox(challenge_id, challenge.sandbox_image)
+        try:
+            result = start_sandbox(challenge_id, challenge.sandbox_image)
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Sandbox startup failed: {str(e)}")
         
         return StartResponse(
             container_id=result["container_id"],
@@ -61,58 +77,65 @@ async def submit_challenge(challenge_id: str, request: SubmitRequest):
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
         
-        # Get user's active container from progress
+        # Get existing progress (if any) for attempt counting
         progress = session.query(UserProgress).filter(
             UserProgress.user_id == request.user_id,
             UserProgress.challenge_id == challenge_id,
         ).first()
-        
-        if not progress or not progress.container_id:
-            raise HTTPException(status_code=400, detail="No active sandbox found. Start the challenge first.")
-        
+
         # Run validation - SYNCHRONOUS, do NOT await
-        result = run_validation(progress.container_id, challenge.validation_script)
+        result = run_validation(request.container_id, challenge.validation_script)
         
         # Update progress
-        passed = result["success"]
+        passed = bool(result.get("success"))
         create_or_update_progress(
             session=session,
             id=str(uuid.uuid4()) if not progress else progress.id,
             user_id=request.user_id,
             course_id=challenge.course_id,
             challenge_id=challenge_id,
+            topic_id=challenge.topic_id,
             status="passed" if passed else "attempted",
             attempts=(progress.attempts + 1) if progress else 1,
             passed_at=datetime.utcnow() if passed else None,
             last_attempted_at=datetime.utcnow(),
         )
-        
-        # Stop sandbox
-        stop_sandbox(progress.container_id)
+
+        # Keep sandbox running on failed attempts so users can retry without losing state.
+        # Only stop container after successful completion.
+        if passed:
+            try:
+                stop_sandbox(request.container_id)
+            except Exception:
+                # Do not fail the submission response if cleanup fails.
+                pass
         
         return SubmitResponse(
             passed=passed,
-            output=result["output"],
+            output=result.get("output", ""),
         )
     finally:
         session.close()
 
 
 @router.post("/{challenge_id}/skip")
-async def skip_challenge(challenge_id: str, request: SkipRequest):
+async def skip_challenge(challenge_id: str, request: Optional[SkipRequest] = None):
     """Mark a challenge as skipped."""
     session = next(get_session())
     try:
         challenge = get_challenge_by_id(session, challenge_id)
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
+
+        user_id = request.user_id if request else "default"
         
         create_or_update_progress(
             session=session,
             id=str(uuid.uuid4()),
-            user_id=request.user_id,
+            user_id=user_id,
             course_id=challenge.course_id,
             challenge_id=challenge_id,
+            topic_id=challenge.topic_id,
             status="skipped",
             last_attempted_at=datetime.utcnow(),
         )
@@ -139,6 +162,7 @@ async def list_challenges(topic_id: Optional[str] = None, status: Optional[str] 
                 "id": c.id,
                 "course_id": c.course_id,
                 "topic_id": c.topic_id,
+                "title": derive_challenge_title(c.question),
                 "type": c.type,
                 "question": c.question,
                 "hint": c.hint,
@@ -164,6 +188,7 @@ async def get_challenge(challenge_id: str):
             "id": challenge.id,
             "course_id": challenge.course_id,
             "topic_id": challenge.topic_id,
+            "title": derive_challenge_title(challenge.question),
             "type": challenge.type,
             "question": challenge.question,
             "hint": challenge.hint,

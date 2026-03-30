@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create `assessment-uitvoeren_concepts.txt` and explain how the concept 'Assessment uitvoeren' applies to this topic.",
+    "hint": "Write at least two lines and include the concept name explicitly.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f assessment-uitvoeren_concepts.txt ] || exit 1\ngrep -qi \"Assessment uitvoeren\" assessment-uitvoeren_concepts.txt || exit 1\n[ $(wc -l < assessment-uitvoeren_concepts.txt) -ge 2 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `assessment-uitvoeren_checklist_2.md` with at least three checklist items describing practical verification steps for topic 'Assessment uitvoeren'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f assessment-uitvoeren_checklist_2.md ] || exit 1\ngrep -Ec '^- \\[ \\]' assessment-uitvoeren_checklist_2.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `assessment-uitvoeren_checklist_3.md` with at least three checklist items describing practical verification steps for topic 'Assessment uitvoeren'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f assessment-uitvoeren_checklist_3.md ] || exit 1\ngrep -Ec '^- \\[ \\]' assessment-uitvoeren_checklist_3.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  }
+]

@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create /root/verify_useradd.sh that checks `useradd` exists (using `command -v`) and writes a short success message before exiting 0.",
+    "hint": "Add a shebang, use command -v, and make the script executable.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ntest -f /root/verify_useradd.sh || exit 1\ntest -x /root/verify_useradd.sh || exit 1\ngrep -q 'command -v useradd' /root/verify_useradd.sh || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Run /root/verify_useradd.sh and save its output to /root/useradd_verify.log.",
+    "hint": "Execute the script and redirect stdout/stderr to the log file.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ntest -x /root/verify_useradd.sh || exit 1\ntest -s /root/useradd_verify.log || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create directory /root/user-management-workspace and save the absolute path of `useradd` into /root/useradd_path.txt.",
+    "hint": "Use `mkdir -p` and `command -v` to capture the command path.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ntest -d /root/user-management-workspace || exit 1\ntest -s /root/useradd_path.txt || exit 1\ngrep -Eq '^/' /root/useradd_path.txt || exit 1\ngrep -q 'useradd' /root/useradd_path.txt || exit 1\nexit 0",
+    "expected_output": null
+  }
+]

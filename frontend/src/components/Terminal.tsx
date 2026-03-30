@@ -3,35 +3,41 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 interface TerminalProps {
   port: number | null;
   onFocus?: () => void;
+  title?: string;
 }
 
 type Status = 'waiting' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
-export default function Terminal({ port, onFocus }: TerminalProps) {
+export default function Terminal({ port, onFocus, title = 'CyberLab Sandbox' }: TerminalProps) {
   const [status, setStatus] = useState<Status>('waiting');
   const [showReconnect, setShowReconnect] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const focusShortcutRegistered = useRef(false);
 
-  // Register keyboard shortcut (Ctrl+`) to focus terminal
+  const focusTerminal = useCallback(() => {
+    if (!iframeRef.current || status !== 'connected') return;
+    iframeRef.current.focus();
+    try {
+      iframeRef.current.contentWindow?.focus();
+    } catch {
+      // Cross-origin focus can fail silently depending on browser policy.
+    }
+    onFocus?.();
+  }, [status, onFocus]);
+
+  // Register keyboard shortcuts to focus terminal quickly.
   useEffect(() => {
-    if (focusShortcutRegistered.current) return;
-    focusShortcutRegistered.current = true;
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === '`') {
+      const isFocusShortcut = e.key === 'F2' || (e.ctrlKey && e.key === '`');
+      if (isFocusShortcut) {
         e.preventDefault();
-        if (iframeRef.current && status === 'connected') {
-          iframeRef.current.focus();
-          onFocus?.();
-        }
+        focusTerminal();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [status, onFocus]);
+  }, [focusTerminal]);
 
   // Poll for terminal readiness
   useEffect(() => {
@@ -113,7 +119,21 @@ export default function Terminal({ port, onFocus }: TerminalProps) {
     if (status === 'connecting') {
       setStatus('connected');
     }
+
+    window.setTimeout(() => {
+      focusTerminal();
+    }, 120);
   };
+
+  useEffect(() => {
+    if (status !== 'connected') return;
+
+    const timer = window.setTimeout(() => {
+      focusTerminal();
+    }, 150);
+
+    return () => window.clearTimeout(timer);
+  }, [status, focusTerminal]);
 
   const getStatusColor = () => {
     switch (status) {
@@ -137,18 +157,18 @@ export default function Terminal({ port, onFocus }: TerminalProps) {
 
   // Render status indicator
   const StatusIndicator = () => (
-    <div className="absolute top-3 right-3 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#111]/90 backdrop-blur-sm rounded border border-[#333]">
+    <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[#0f0f0f] rounded border border-[#2b2b2b]">
       <div
         className="w-2 h-2 rounded-full animate-pulse"
         style={{ backgroundColor: getStatusColor() }}
       />
-      <span className="text-xs font-mono" style={{ color: getStatusColor() }}>
+      <span className="text-[11px] font-mono" style={{ color: getStatusColor() }}>
         {getStatusText()}
       </span>
       {showReconnect && (
         <button
           onClick={handleReconnect}
-          className="ml-2 px-2 py-0.5 text-xs bg-[#333] hover:bg-[#444] rounded transition-colors"
+          className="ml-1 px-2 py-0.5 text-[11px] bg-[#262626] hover:bg-[#333] rounded transition-colors"
           style={{ color: '#ffaa00' }}
         >
           Reconnect
@@ -214,33 +234,43 @@ export default function Terminal({ port, onFocus }: TerminalProps) {
   return (
     <div
       ref={containerRef}
-      className="relative h-full bg-[#0a0a0a]"
+      className="relative h-full bg-[#050505] border border-[#1f1f1f] rounded-md overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.35)]"
       style={{ fontFamily: 'JetBrains Mono, monospace' }}
     >
-      <StatusIndicator />
-      
       {/* Terminal header bar */}
-      <div className="absolute top-0 left-0 right-16 h-8 bg-[#111] border-b border-[#222] flex items-center px-3">
-        <div className="flex items-center gap-2">
+      <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-[#121212] to-[#0d0d0d] border-b border-[#232323] flex items-center px-3 gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <div className="w-3 h-3 rounded-full bg-[#ff4444]" />
           <div className="w-3 h-3 rounded-full bg-[#ffaa00]" />
           <div className="w-3 h-3 rounded-full bg-[#00ff88]" />
         </div>
-        <span className="ml-4 text-xs text-[#666]">ttyd — {port}</span>
+        <span className="text-xs text-[#9a9a9a] truncate">{title}</span>
+
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={focusTerminal}
+            className="text-[11px] px-2 py-1 rounded border border-[#2d2d2d] bg-[#111] text-[#9a9a9a] hover:text-[#d0d0d0] hover:border-[#444] transition-colors"
+          >
+            Focus (F2)
+          </button>
+          <StatusIndicator />
+        </div>
       </div>
 
       <iframe
         ref={iframeRef}
         src={`http://localhost:${port}`}
-        className="absolute top-8 left-0 right-0 bottom-0 w-full h-[calc(100%-2rem)] border-0"
-        title="Terminal"
+        className="absolute top-10 left-0 right-0 bottom-0 w-full h-[calc(100%-2.5rem)] border-0"
+        title={title}
         onLoad={handleIframeLoad}
         allow="clipboard-read; clipboard-write"
+        tabIndex={0}
+        onMouseDown={focusTerminal}
       />
 
       {/* Focus hint overlay (fades out) */}
       <div className="absolute bottom-4 right-4 text-xs text-[#666] bg-[#111]/80 px-2 py-1 rounded pointer-events-none animate-[fadeOut_3s_ease-out_forwards]">
-        Ctrl+` to focus
+        Press F2 (or Ctrl+`) to focus
       </div>
 
       <style>{`

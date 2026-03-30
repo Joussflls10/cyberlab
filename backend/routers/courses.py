@@ -1,10 +1,12 @@
 """Courses Router - Handles course CRUD operations."""
 
 from fastapi import APIRouter, HTTPException
-from typing import List
+from sqlmodel import select, delete
 
 from models.course import Course, Topic, get_active_courses, get_course_by_id, get_topics_for_course
 from models.challenge import Challenge
+from models.progress import UserProgress
+from models.import_job import ImportJob
 from database import get_session
 
 router = APIRouter()
@@ -104,10 +106,21 @@ async def delete_course(course_id: str):
         course = get_course_by_id(session, course_id)
         if not course:
             raise HTTPException(status_code=404, detail="Course not found")
-        
+
+        # Explicitly delete dependents to avoid ORM trying to NULL non-nullable FKs.
+        session.exec(delete(UserProgress).where(UserProgress.course_id == course_id))
+        session.exec(delete(Challenge).where(Challenge.course_id == course_id))
+        session.exec(delete(Topic).where(Topic.course_id == course_id))
+        session.exec(delete(ImportJob).where(ImportJob.course_id == course_id))
+
         session.delete(course)
         session.commit()
-        
-        return {"status": "deleted", "course_id": course_id}
+
+        return {"success": True, "message": "Course deleted", "course_id": course_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete course: {str(e)}")
     finally:
         session.close()

@@ -26,3 +26,9 @@ ruff>=0.1.0
 
 # File watching
 watchdog>=3.0.0
+
+# Grinder + AI client runtime dependencies
+httpx>=0.24.0
+PyMuPDF>=1.23.0
+python-pptx>=0.6.23
+docker>=7.0.0

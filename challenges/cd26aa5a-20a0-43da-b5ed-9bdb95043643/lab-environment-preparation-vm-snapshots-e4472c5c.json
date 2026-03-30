@@ -1,0 +1,13 @@
+[
+  {
+    "question": "Run `snapshot creation` in the terminal to verify your environment for topic 'Lab Environment Preparation & VM Snapshots'.",
+    "hint": "Use the terminal and verify the command exits successfully.",
+    "type": "command",
+    "sandbox_type": "single",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v snapshot >/dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null,
+    "skipped_reason": null
+  }
+]

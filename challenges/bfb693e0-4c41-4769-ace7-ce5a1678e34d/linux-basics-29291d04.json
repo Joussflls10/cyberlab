@@ -1,0 +1,11 @@
+[
+  {
+    "question": "Verify Linux Basics environment",
+    "hint": null,
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v echo >/dev/null 2>&1 && exit 0 || exit 1",
+    "expected_output": null
+  }
+]

@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create /root/linux-lab with subdirectory /root/linux-lab/logs and a file /root/linux-lab/report.txt containing 'linux-lab-ready'.",
+    "hint": "Use mkdir -p and output redirection.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ntest -d /root/linux-lab/logs || exit 1\ntest -f /root/linux-lab/report.txt || exit 1\ngrep -q '^linux-lab-ready$' /root/linux-lab/report.txt || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Set permissions so /root/linux-lab/report.txt is 640 and /root/linux-lab/logs is 750.",
+    "hint": "Use chmod and verify with stat.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\nstat -c '%a' /root/linux-lab/report.txt | grep -q '^640$' || exit 1\nstat -c '%a' /root/linux-lab/logs | grep -q '^750$' || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create an executable script /root/linux-lab/check_disk.sh that writes `df -h` output to /root/linux-lab/disk.txt and run it once.",
+    "hint": "Include a shebang and `df -h > /root/linux-lab/disk.txt` in the script.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ntest -f /root/linux-lab/check_disk.sh || exit 1\ntest -x /root/linux-lab/check_disk.sh || exit 1\ngrep -q 'df -h' /root/linux-lab/check_disk.sh || exit 1\ntest -s /root/linux-lab/disk.txt || exit 1\ngrep -q 'Filesystem' /root/linux-lab/disk.txt || exit 1\nexit 0",
+    "expected_output": null
+  }
+]

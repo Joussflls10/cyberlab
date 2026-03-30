@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Run `ansible.builtin.dnf --version` (or equivalent) and save the output to `ansible.builtin.dnf_version.txt`.",
+    "hint": "Use shell redirection and keep the output file in the working directory.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v ansible.builtin.dnf >/dev/null 2>&1 || exit 1\n[ -s ansible.builtin.dnf_version.txt ] || exit 1\ngrep -qi 'ansible.builtin.dnf' ansible.builtin.dnf_version.txt || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Capture `ansible.builtin.dnf --help` output to `ansible.builtin.dnf_help.txt` and confirm the file is non-empty.",
+    "hint": "Use `>` redirection and verify with `wc -l`.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ncommand -v ansible.builtin.dnf >/dev/null 2>&1 || exit 1\n[ -s ansible.builtin.dnf_help.txt ] || exit 1\n[ $(wc -l < ansible.builtin.dnf_help.txt) -ge 3 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create an executable script `verify_ansible.builtin.dnf.sh` that checks `ansible.builtin.dnf` availability and prints a version/help line.",
+    "hint": "Include a shebang, a command check, and make the script executable.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f verify_ansible.builtin.dnf.sh ] || exit 1\ngrep -q 'ansible.builtin.dnf' verify_ansible.builtin.dnf.sh || exit 1\n[ -x verify_ansible.builtin.dnf.sh ] || exit 1\n./verify_ansible.builtin.dnf.sh > /tmp/rocky-linux-bootstrap-playbook-main-assi_ansible.builtin.dnf_verify.log 2>&1 || exit 1\n[ -s /tmp/rocky-linux-bootstrap-playbook-main-assi_ansible.builtin.dnf_verify.log ] || exit 1\nexit 0",
+    "expected_output": null
+  }
+]

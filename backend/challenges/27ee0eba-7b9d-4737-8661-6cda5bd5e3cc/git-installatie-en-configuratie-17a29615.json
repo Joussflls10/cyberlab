@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Run `git --version` (or equivalent) and save the output to `git_version.txt`.",
+    "hint": "Use shell redirection and keep the output file in the working directory.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v git >/dev/null 2>&1 || exit 1\n[ -s git_version.txt ] || exit 1\ngrep -qi 'git' git_version.txt || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Capture `git --help` output to `git_help.txt` and confirm the file is non-empty.",
+    "hint": "Use `>` redirection and verify with `wc -l`.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ncommand -v git >/dev/null 2>&1 || exit 1\n[ -s git_help.txt ] || exit 1\n[ $(wc -l < git_help.txt) -ge 3 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create an executable script `verify_git.sh` that checks `git` availability and prints a version/help line.",
+    "hint": "Include a shebang, a command check, and make the script executable.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f verify_git.sh ] || exit 1\ngrep -q 'git' verify_git.sh || exit 1\n[ -x verify_git.sh ] || exit 1\n./verify_git.sh > /tmp/git-installatie-en-configuratie_git_verify.log 2>&1 || exit 1\n[ -s /tmp/git-installatie-en-configuratie_git_verify.log ] || exit 1\nexit 0",
+    "expected_output": null
+  }
+]

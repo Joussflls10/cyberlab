@@ -1,211 +1,365 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import Terminal from '../components/Terminal';
-import { getChallenge, startChallenge, submitChallenge, skipChallenge } from '../api/client';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import {
+  CheckCircle2,
+  CheckSquare,
+  Clock3,
+  ListChecks,
+  Square,
+  TerminalSquare,
+} from 'lucide-react'
+import Terminal from '../components/Terminal'
+import { getChallenge, startChallenge, submitChallenge, skipChallenge } from '../api/client'
 
-type Phase = 'loading' | 'starting' | 'active' | 'submitting' | 'submitted' | 'error';
-type ChallengeType = 'command' | 'output' | 'file';
+type Phase = 'loading' | 'starting' | 'active' | 'submitting' | 'submitted' | 'error'
+type ChallengeType = 'command' | 'output' | 'file'
+type MobileView = 'steps' | 'terminal'
 
 interface ChallengeData {
-  id: string;
-  title: string;
-  type: ChallengeType;
-  difficulty: 'easy' | 'medium' | 'hard';
-  question: string;
-  hint?: string;
-  validation_script?: string;
-  expected_output?: string;
-  solution?: string;
+  id: string
+  title: string
+  type: ChallengeType
+  difficulty: 'easy' | 'medium' | 'hard'
+  question: string
+  hint?: string
+  sandbox_image?: string
+  validation_script?: string
+  expected_output?: string
+  solution?: string
+}
+
+interface ChallengeRouteState {
+  courseId?: string
+  challengeIndex?: number
+  challengeTotal?: number
+  challengeIds?: string[]
 }
 
 interface SubmitResult {
-  passed: boolean;
-  output: string;
-  expected?: string;
-  actual?: string;
+  passed: boolean
+  output: string
+  expected?: string
+  actual?: string
+}
+
+const CHECKLIST_STORAGE_PREFIX = 'cyberlab-checklist:'
+
+function stripStepPrefix(line: string): string {
+  return line
+    .replace(/^\s*(\d+[.)]|[-*•])\s+/, '')
+    .replace(/^\s*\[[ xX]\]\s+/, '')
+    .trim()
+}
+
+function deriveChecklistSteps(question: string): string[] {
+  const withoutCodeBlocks = question.replace(/```[\s\S]*?```/g, ' ').replace(/\r/g, '').trim()
+  if (!withoutCodeBlocks) return []
+
+  const lines = withoutCodeBlocks
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  const explicitSteps = lines
+    .filter(line => /^(\d+[.)]|[-*•])\s+/.test(line))
+    .map(stripStepPrefix)
+    .filter(Boolean)
+
+  if (explicitSteps.length < 2) return []
+  return explicitSteps.slice(0, 12)
+}
+
+function deriveChallengeTitle(data: Pick<ChallengeData, 'title' | 'question'> | null | undefined): string {
+  const explicitTitle = data?.title?.trim()
+  if (explicitTitle) return explicitTitle
+
+  const firstMeaningfulLine = (data?.question || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .split('\n')
+    .map(line => stripStepPrefix(line))
+    .find(Boolean)
+
+  if (!firstMeaningfulLine) return 'Challenge'
+  return firstMeaningfulLine.length > 90
+    ? `${firstMeaningfulLine.slice(0, 89).trimEnd()}…`
+    : firstMeaningfulLine
 }
 
 export default function Challenge() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  const [challenge, setChallenge] = useState<ChallengeData | null>(null);
-  const [containerId, setContainerId] = useState<string | null>(null);
-  const [ttydPort, setTtydPort] = useState<number | null>(null);
-  const [phase, setPhase] = useState<Phase>('loading');
-  const [result, setResult] = useState<SubmitResult | null>(null);
-  const [showHint, setShowHint] = useState(false);
-  const [showValidationScript, setShowValidationScript] = useState(false);
-  const [showGiveUpDialog, setShowGiveUpDialog] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showFailureModal, setShowFailureModal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Timer state
-  const [timeSpent, setTimeSpent] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
-  // Attempt tracking
-  const [attempts, setAttempts] = useState(0);
-  const [showSolution, setShowSolution] = useState(false);
+  const [challenge, setChallenge] = useState<ChallengeData | null>(null)
+  const [containerId, setContainerId] = useState<string | null>(null)
+  const [ttydPort, setTtydPort] = useState<number | null>(null)
+  const [phase, setPhase] = useState<Phase>('loading')
+  const [result, setResult] = useState<SubmitResult | null>(null)
+  const [showHint, setShowHint] = useState(false)
+  const [showValidationScript, setShowValidationScript] = useState(false)
+  const [showGiveUpDialog, setShowGiveUpDialog] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [showFailureModal, setShowFailureModal] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Format time as MM:SS
+  const [mobileView, setMobileView] = useState<MobileView>('steps')
+  const [checklist, setChecklist] = useState<boolean[]>([])
+
+  const [timeSpent, setTimeSpent] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const [attempts, setAttempts] = useState(0)
+  const [showSolution, setShowSolution] = useState(false)
+
+  const routeState = (location.state ?? {}) as ChallengeRouteState
+
+  const checklistSteps = useMemo(
+    () => deriveChecklistSteps(challenge?.question ?? ''),
+    [challenge?.question]
+  )
+
+  const completedSteps = checklist.filter(Boolean).length
+  const checklistPercent = checklistSteps.length > 0
+    ? Math.round((completedSteps / checklistSteps.length) * 100)
+    : 0
+
+  const showChecklist = useMemo(() => {
+    if (!challenge || checklistSteps.length < 2) return false
+    const questionLen = challenge.question.replace(/\s+/g, ' ').trim().length
+    const checklistLen = checklistSteps.join(' ').replace(/\s+/g, ' ').trim().length
+    return checklistLen < questionLen * 0.8
+  }, [challenge, checklistSteps])
+
+  const challengeTitle = useMemo(() => {
+    if (!challenge) return 'Loading challenge…'
+    return deriveChallengeTitle(challenge)
+  }, [challenge])
+
+  const challengeCounter = useMemo(() => {
+    if (
+      typeof routeState.challengeIndex !== 'number' ||
+      typeof routeState.challengeTotal !== 'number' ||
+      routeState.challengeTotal <= 0
+    ) {
+      return null
+    }
+
+    return `Challenge ${routeState.challengeIndex + 1} / ${routeState.challengeTotal}`
+  }, [routeState.challengeIndex, routeState.challengeTotal])
+
+  const terminalTitle = useMemo(() => {
+    const image = challenge?.sandbox_image?.replace(/^cyberlab-/, '')
+    if (!image) return 'CyberLab Sandbox'
+    return `CyberLab Sandbox — ${image}`
+  }, [challenge?.sandbox_image])
+
+  const isActive = phase === 'active' || phase === 'submitting'
+
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
 
-  // Start timer when challenge becomes active
   useEffect(() => {
     if (phase === 'active') {
       timerRef.current = setInterval(() => {
-        setTimeSpent(t => t + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+        setTimeSpent(t => t + 1)
+      }, 1000)
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current)
     }
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [phase]);
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [phase])
 
-  // Reset timer when challenge ID changes
   useEffect(() => {
-    setTimeSpent(0);
-    setAttempts(0);
-    setShowSolution(false);
-  }, [id]);
+    setTimeSpent(0)
+    setAttempts(0)
+    setShowSolution(false)
+    setMobileView('steps')
+  }, [id])
 
-  // Step 1 — load challenge data
   useEffect(() => {
-    if (!id) return;
-    setPhase('loading');
-    setError(null);
-    
+    if (!id) return
+    setPhase('loading')
+    setError(null)
+
     getChallenge(id)
       .then(data => {
-        setChallenge(data);
-        setPhase('starting');
+        const normalized = {
+          ...data,
+          title: deriveChallengeTitle(data),
+        } as ChallengeData
+        setChallenge(normalized)
+        setPhase('starting')
       })
       .catch(() => {
-        setError('Failed to load challenge data.');
-        setPhase('error');
-      });
-  }, [id]);
+        setError('Failed to load challenge data.')
+        setPhase('error')
+      })
+  }, [id])
 
-  // Step 2 — start sandbox once challenge is loaded
   useEffect(() => {
-    if (phase !== 'starting' || !id) return;
-    
+    if (phase !== 'starting' || !id) return
+
     startChallenge(id)
-      .then(({ container_id, ttyd_port }) => {
-        setContainerId(container_id);
-        setTtydPort(ttyd_port);
-        setPhase('active');
+      .then(({ container_id, port }) => {
+        setContainerId(container_id)
+        setTtydPort(port)
+        setPhase('active')
       })
-      .catch(() => {
-        setError('Failed to start sandbox container.');
-        setPhase('error');
-      });
-  }, [phase, id]);
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to start sandbox container.')
+        setPhase('error')
+      })
+  }, [phase, id])
+
+  useEffect(() => {
+    if (!id || checklistSteps.length === 0) {
+      setChecklist([])
+      return
+    }
+
+    try {
+      const stored = localStorage.getItem(`${CHECKLIST_STORAGE_PREFIX}${id}`)
+      if (!stored) {
+        setChecklist(Array(checklistSteps.length).fill(false))
+        return
+      }
+
+      const parsed = JSON.parse(stored)
+      if (!Array.isArray(parsed)) {
+        setChecklist(Array(checklistSteps.length).fill(false))
+        return
+      }
+
+      const normalized = Array.from({ length: checklistSteps.length }, (_, idx) => parsed[idx] === true)
+      setChecklist(normalized)
+    } catch {
+      setChecklist(Array(checklistSteps.length).fill(false))
+    }
+  }, [id, checklistSteps.length])
+
+  useEffect(() => {
+    if (!id || checklist.length === 0) return
+    try {
+      localStorage.setItem(`${CHECKLIST_STORAGE_PREFIX}${id}`, JSON.stringify(checklist))
+    } catch {
+      // ignore localStorage failures in private mode
+    }
+  }, [id, checklist])
+
+  const toggleStep = (index: number) => {
+    setChecklist(prev => prev.map((checked, idx) => (idx === index ? !checked : checked)))
+  }
+
+  const markAllSteps = (value: boolean) => {
+    setChecklist(Array(checklistSteps.length).fill(value))
+  }
 
   const handleSubmit = async () => {
-    if (!id || !containerId) return;
-    
-    setPhase('submitting');
-    try {
-      const res = await submitChallenge(id, containerId);
-      setResult(res);
-      
-      if (res.passed) {
-        setShowSuccessModal(true);
-      } else {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        
-        // Show solution after 3 failed attempts
-        if (newAttempts >= 3) {
-          setShowSolution(true);
-        }
-        
-        setShowFailureModal(true);
-      }
-      setPhase('submitted');
-    } catch {
-      setError('Submission failed.');
-      setPhase('active');
-    }
-  };
+    if (!id || !containerId) return
 
-  const handleSkip = () => {
-    setShowGiveUpDialog(true);
-  };
+    setPhase('submitting')
+    try {
+      const res = await submitChallenge(id, containerId)
+      setResult(res)
+
+      if (res.passed) {
+        setShowSuccessModal(true)
+      } else {
+        const nextAttempts = attempts + 1
+        setAttempts(nextAttempts)
+        if (nextAttempts >= 3) setShowSolution(true)
+        setShowFailureModal(true)
+      }
+      setPhase('submitted')
+    } catch {
+      setError('Submission failed.')
+      setPhase('active')
+    }
+  }
+
+  const handleSkip = () => setShowGiveUpDialog(true)
 
   const confirmSkip = async () => {
-    setShowGiveUpDialog(false);
-    if (!id) return;
-    await skipChallenge(id);
-    navigate(-1);
-  };
+    setShowGiveUpDialog(false)
+    if (!id) return
+    await skipChallenge(id)
+    navigate(-1)
+  }
 
   const handleRetry = () => {
-    setPhase('active');
-    setResult(null);
-    setShowFailureModal(false);
-  };
+    setPhase('active')
+    setResult(null)
+    setShowFailureModal(false)
+  }
 
   const handleViewSolution = () => {
-    setShowSolution(true);
-    setShowFailureModal(false);
-  };
+    setShowSolution(true)
+    setShowFailureModal(false)
+  }
 
   const handleNextChallenge = () => {
-    setShowSuccessModal(false);
-    navigate(-1); // Navigate back to course/topic
-  };
+    setShowSuccessModal(false)
+
+    const { challengeIds, challengeIndex, courseId } = routeState
+    if (Array.isArray(challengeIds) && typeof challengeIndex === 'number') {
+      const nextIndex = challengeIndex + 1
+      if (nextIndex < challengeIds.length) {
+        navigate(`/challenge/${challengeIds[nextIndex]}`, {
+          state: {
+            ...routeState,
+            challengeIndex: nextIndex,
+            challengeTotal: challengeIds.length,
+          },
+        })
+        return
+      }
+    }
+
+    if (courseId) {
+      navigate(`/course/${courseId}`)
+      return
+    }
+
+    navigate(-1)
+  }
 
   const handleTerminalFocus = useCallback(() => {
-    // Terminal is focused
-  }, []);
+    // hook for future terminal focus analytics
+  }, [])
 
-  // Simple markdown renderer with syntax highlighting
   const renderMarkdown = (text: string) => {
-    if (!text) return null;
-    
-    // Split by code blocks first
-    const parts = text.split(/(```[\s\S]*?```)/g);
-    
+    if (!text) return null
+
+    const parts = text.split(/(```[\s\S]*?```)/g)
+
     return parts.map((part, index) => {
       if (part.startsWith('```')) {
-        // Extract language and code
-        const match = part.match(/```(\w*)\n([\s\S]*?)```/);
+        const match = part.match(/```(\w*)\n([\s\S]*?)```/)
         if (match) {
-          const [, lang, code] = match;
+          const [, lang, code] = match
           return (
             <pre key={index} className="my-2 p-3 bg-[#111] rounded border border-[#222] overflow-x-auto">
               <code className={`text-sm font-mono ${lang ? `language-${lang}` : ''}`}>
                 {code.trim()}
               </code>
             </pre>
-          );
+          )
         }
       }
-      
-      // Handle inline code and basic formatting
-      const lines = part.split('\n');
+
+      const lines = part.split('\n')
       return (
         <div key={index} className="space-y-1">
           {lines.map((line, lineIdx) => {
-            // Handle inline code
-            const segments = line.split(/(`[^`]+`)/g);
+            const segments = line.split(/(`[^`]+`)/g)
             return (
-              <p key={lineIdx} className="text-sm leading-relaxed">
+              <p key={lineIdx} className="text-sm leading-relaxed break-words">
                 {segments.map((segment, segIdx) => {
                   if (segment.startsWith('`') && segment.endsWith('`')) {
                     return (
@@ -215,57 +369,46 @@ export default function Challenge() {
                       >
                         {segment.slice(1, -1)}
                       </code>
-                    );
+                    )
                   }
-                  return <span key={segIdx}>{segment}</span>;
+                  return <span key={segIdx}>{segment}</span>
                 })}
               </p>
-            );
+            )
           })}
         </div>
-      );
-    });
-  };
+      )
+    })
+  }
 
-  // Syntax highlighting for validation script
   const highlightSyntax = (code: string) => {
-    // Basic bash/shell highlighting
-    const keywords = ['if', 'then', 'else', 'fi', 'for', 'do', 'done', 'while', 'case', 'esac', 'function', 'return', 'exit'];
-    const commands = ['echo', 'grep', 'sed', 'awk', 'cat', 'ls', 'cd', 'mkdir', 'rm', 'cp', 'mv', 'chmod', 'chown'];
-    
+    const keywords = ['if', 'then', 'else', 'fi', 'for', 'do', 'done', 'while', 'case', 'esac', 'function', 'return', 'exit']
+    const commands = ['echo', 'grep', 'sed', 'awk', 'cat', 'ls', 'cd', 'mkdir', 'rm', 'cp', 'mv', 'chmod', 'chown']
+
     return code.split('\n').map((line, idx) => {
-      // Skip comments
       if (line.trim().startsWith('#')) {
-        return <div key={idx} className="text-[#666]">{line}</div>;
+        return <div key={idx} className="text-[#666]">{line}</div>
       }
-      
-      const words = line.split(/(\s+)/);
+
+      const words = line.split(/(\s+)/)
       return (
         <div key={idx}>
           {words.map((word, wIdx) => {
-            if (keywords.includes(word.trim())) {
-              return <span key={wIdx} className="text-[#ffaa00]">{word}</span>;
-            }
-            if (commands.includes(word.trim())) {
-              return <span key={wIdx} className="text-[#00ff88]">{word}</span>;
-            }
-            if (word.startsWith('"') || word.startsWith("'")) {
-              return <span key={wIdx} className="text-[#ffaa00]">{word}</span>;
-            }
-            if (word.startsWith('$')) {
-              return <span key={wIdx} className="text-[#ff4444]">{word}</span>;
-            }
-            return <span key={wIdx}>{word}</span>;
+            if (keywords.includes(word.trim())) return <span key={wIdx} className="text-[#ffaa00]">{word}</span>
+            if (commands.includes(word.trim())) return <span key={wIdx} className="text-[#00ff88]">{word}</span>
+            if (word.startsWith('"') || word.startsWith("'")) return <span key={wIdx} className="text-[#ffaa00]">{word}</span>
+            if (word.startsWith('$')) return <span key={wIdx} className="text-[#ff4444]">{word}</span>
+            return <span key={wIdx}>{word}</span>
           })}
         </div>
-      );
-    });
-  };
+      )
+    })
+  }
 
   if (phase === 'error') {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0a0a] text-[#ff4444] font-mono">
-        <div className="text-center">
+      <div className="flex items-center justify-center min-h-screen bg-[#0a0a0a] text-[#ff4444] font-mono px-4">
+        <div className="text-center max-w-md">
           <div className="text-4xl mb-4">⚠️</div>
           <p className="text-sm mb-4">{error || 'Something went wrong.'}</p>
           <button
@@ -276,60 +419,157 @@ export default function Challenge() {
           </button>
         </div>
       </div>
-    );
+    )
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] text-gray-100 font-mono overflow-hidden">
-      {/* Left sidebar - Challenge details */}
-      <div className="w-[420px] flex-shrink-0 border-r border-[#222] flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-[#222] bg-[#0f0f0f]">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2">
+    <div className="min-h-screen lg:h-screen bg-[#0a0a0a] text-gray-100 font-mono flex flex-col lg:flex-row overflow-hidden">
+      <div className="lg:hidden sticky top-0 z-30 border-b border-[#222] bg-[#0f0f0f]/95 backdrop-blur px-3 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-sm font-semibold text-gray-100 truncate">{challengeTitle}</h1>
+            <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+              {challengeCounter && (
+                <span className="px-1.5 py-0.5 rounded border border-[#333] text-gray-300 bg-[#111]">
+                  {challengeCounter}
+                </span>
+              )}
+              <Clock3 className="w-3.5 h-3.5" />
+              <span className={timeSpent > 300 ? 'text-[#ffaa00]' : ''}>{formatTime(timeSpent)}</span>
               {challenge && (
-                <>
-                  <span className={`text-xs px-2 py-1 rounded border ${
-                    challenge.difficulty === 'easy' ? 'border-[#00ff88] text-[#00ff88]' :
-                    challenge.difficulty === 'medium' ? 'border-[#ffaa00] text-[#ffaa00]' :
-                    'border-[#ff4444] text-[#ff4444]'
-                  }`}>
-                    {challenge.difficulty.toUpperCase()}
-                  </span>
-                  <span className="text-xs text-[#666] px-2 py-1 bg-[#111] rounded">
-                    {challenge.type}
-                  </span>
-                </>
+                <span className={`ml-1 px-1.5 py-0.5 rounded border ${
+                  challenge.difficulty === 'easy' ? 'border-[#00ff88] text-[#00ff88]' :
+                  challenge.difficulty === 'medium' ? 'border-[#ffaa00] text-[#ffaa00]' :
+                  'border-[#ff4444] text-[#ff4444]'
+                }`}>
+                  {challenge.difficulty}
+                </span>
               )}
             </div>
-            
-            {/* Timer */}
-            <div className="flex items-center gap-1.5 text-xs text-[#666] bg-[#111] px-2 py-1 rounded">
-              <span>⏱️</span>
-              <span className={timeSpent > 300 ? 'text-[#ffaa00]' : ''}>
-                {formatTime(timeSpent)}
-              </span>
-            </div>
           </div>
-          
-          <h1 className="text-lg font-bold text-gray-100">
-            {challenge?.title || 'Loading...'}
-          </h1>
         </div>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setMobileView('steps')}
+            className={`inline-flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs ${
+              mobileView === 'steps'
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-[#333] text-gray-400'
+            }`}
+          >
+            <ListChecks className="w-3.5 h-3.5" />
+            Steps
+          </button>
+          <button
+            onClick={() => setMobileView('terminal')}
+            className={`inline-flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs ${
+              mobileView === 'terminal'
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-[#333] text-gray-400'
+            }`}
+          >
+            <TerminalSquare className="w-3.5 h-3.5" />
+            Terminal
+          </button>
+        </div>
+      </div>
+
+      <aside className={`${mobileView === 'steps' ? 'flex' : 'hidden'} lg:flex w-full lg:w-[420px] flex-col border-r border-[#222] bg-[#0f0f0f] lg:bg-transparent`}>
+        <div className="hidden lg:block p-4 border-b border-[#222] bg-[#0f0f0f]">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {challenge && (
+              <span className={`text-xs px-2 py-1 rounded border ${
+                challenge.difficulty === 'easy' ? 'border-[#00ff88] text-[#00ff88]' :
+                challenge.difficulty === 'medium' ? 'border-[#ffaa00] text-[#ffaa00]' :
+                'border-[#ff4444] text-[#ff4444]'
+              }`}>
+                {challenge.difficulty.toUpperCase()}
+              </span>
+            )}
+
+            <div className="flex items-center gap-1.5 text-xs text-[#c7c7c7] bg-[#111] px-2 py-1 rounded border border-[#2a2a2a]">
+              <Clock3 className="w-3.5 h-3.5 text-[#666]" />
+              <span className={timeSpent > 300 ? 'text-[#ffaa00]' : ''}>{formatTime(timeSpent)}</span>
+            </div>
+
+            {challengeCounter && (
+              <span className="text-xs text-gray-300 px-2 py-1 bg-[#111] rounded border border-[#2a2a2a]">
+                {challengeCounter}
+              </span>
+            )}
+
+            {challenge && (
+              <span className="text-xs text-[#666] px-2 py-1 bg-[#111] rounded border border-[#2a2a2a]">
+                {challenge.type}
+              </span>
+            )}
+          </div>
+
+          <h1 className="text-lg font-bold text-gray-100">{challengeTitle}</h1>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 lg:pb-4">
           {challenge ? (
             <>
-              {/* Question */}
               <div className="bg-[#111] rounded border border-[#222] p-4">
                 <h2 className="text-xs text-[#666] uppercase tracking-wide mb-2">Challenge</h2>
-                <div className="text-gray-200">
-                  {renderMarkdown(challenge.question)}
-                </div>
+                <div className="text-gray-200">{renderMarkdown(challenge.question)}</div>
               </div>
 
-              {/* Hint */}
+              {showChecklist && (
+                <div className="bg-[#111] rounded border border-primary/20 p-4">
+                  <div className="flex items-center justify-between mb-3 gap-3">
+                    <div>
+                      <h2 className="text-xs text-primary uppercase tracking-wide">Step checklist</h2>
+                      <p className="text-xs text-gray-500 mt-1">{completedSteps}/{checklistSteps.length} completed</p>
+                    </div>
+                    <span className="text-sm font-semibold text-primary">{checklistPercent}%</span>
+                  </div>
+
+                  <div className="w-full h-2 bg-[#0a0a0a] border border-[#222] rounded-full overflow-hidden mb-3">
+                    <div className="h-full bg-primary transition-all duration-300" style={{ width: `${checklistPercent}%` }} />
+                  </div>
+
+                  <div className="space-y-2">
+                    {checklistSteps.map((step, idx) => {
+                      const checked = checklist[idx] === true
+                      return (
+                        <button
+                          key={`${step}-${idx}`}
+                          onClick={() => toggleStep(idx)}
+                          className={`w-full text-left rounded-md border px-3 py-2 text-sm transition-colors ${
+                            checked
+                              ? 'border-primary/40 bg-primary/10 text-gray-100'
+                              : 'border-[#2a2a2a] bg-[#0d0d0d] text-gray-300'
+                          }`}
+                        >
+                          <span className="inline-flex items-start gap-2">
+                            {checked ? <CheckSquare className="w-4 h-4 mt-0.5 text-primary" /> : <Square className="w-4 h-4 mt-0.5 text-gray-500" />}
+                            <span className={checked ? 'line-through text-gray-400' : ''}>{step}</span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      onClick={() => markAllSteps(true)}
+                      className="text-xs border border-primary/30 text-primary px-2 py-1 rounded hover:bg-primary/10"
+                    >
+                      Check all
+                    </button>
+                    <button
+                      onClick={() => markAllSteps(false)}
+                      className="text-xs border border-[#333] text-gray-400 px-2 py-1 rounded hover:border-[#555]"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {challenge.hint && (
                 <div className="bg-[#111] rounded border border-[#ffaa00]/30 p-4">
                   <button
@@ -347,7 +587,6 @@ export default function Challenge() {
                 </div>
               )}
 
-              {/* Validation Script Preview */}
               {challenge.validation_script && (
                 <div className="bg-[#111] rounded border border-[#222] p-4">
                   <button
@@ -365,7 +604,6 @@ export default function Challenge() {
                 </div>
               )}
 
-              {/* Expected Output Preview */}
               {challenge.type === 'output' && challenge.expected_output && (
                 <div className="bg-[#111] rounded border border-[#222] p-4">
                   <h2 className="text-xs text-[#666] uppercase tracking-wide mb-2">Expected Output</h2>
@@ -375,7 +613,6 @@ export default function Challenge() {
                 </div>
               )}
 
-              {/* Solution (shown after 3 failures) */}
               {showSolution && challenge.solution && (
                 <div className="bg-[#111] rounded border border-[#00ff88]/30 p-4">
                   <h2 className="text-xs text-[#00ff88] uppercase tracking-wide mb-2">Solution</h2>
@@ -390,18 +627,17 @@ export default function Challenge() {
           )}
         </div>
 
-        {/* Action buttons */}
-        <div className="p-4 border-t border-[#222] bg-[#0f0f0f] space-y-2">
-          {(phase === 'active' || phase === 'submitting') && (
+        <div className="hidden lg:block p-4 border-t border-[#222] bg-[#0f0f0f] space-y-2">
+          {isActive && (
             <>
               <button
                 onClick={handleSubmit}
-                disabled={phase === ('submitting' as Phase)}
-                className="w-full py-2.5 bg-[#00ff88] hover:bg-[#00ff88]/90 text-black font-bold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={phase === 'submitting'}
+                className="w-full py-2.5 bg-[#2f8f5f] hover:bg-[#37a26a] text-[#f4fff8] font-bold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {phase === ('submitting' as Phase) ? (
+                {phase === 'submitting' ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-[#f4fff8] border-t-transparent rounded-full animate-spin" />
                     <span>Validating...</span>
                   </>
                 ) : (
@@ -410,7 +646,7 @@ export default function Challenge() {
                   </>
                 )}
               </button>
-              
+
               <div className="flex gap-2">
                 <button
                   onClick={handleSkip}
@@ -427,7 +663,7 @@ export default function Challenge() {
                   </button>
                 )}
               </div>
-              
+
               {attempts > 0 && (
                 <p className="text-xs text-[#666] text-center">
                   Attempts: <span className={attempts >= 3 ? 'text-[#ff4444]' : 'text-[#ffaa00]'}>{attempts}</span>
@@ -435,7 +671,7 @@ export default function Challenge() {
               )}
             </>
           )}
-          
+
           {(phase === 'loading' || phase === 'starting') && (
             <button
               disabled
@@ -445,23 +681,57 @@ export default function Challenge() {
             </button>
           )}
         </div>
+      </aside>
+
+      <section
+        className={`${mobileView === 'terminal' ? 'flex' : 'hidden'} lg:flex flex-1 min-h-[55vh] lg:min-h-0`}
+        style={mobileView === 'terminal' ? { height: 'calc(100vh - 170px)' } : undefined}
+      >
+        <div className="flex-1 relative">
+          <Terminal port={ttydPort} onFocus={handleTerminalFocus} title={terminalTitle} />
+        </div>
+      </section>
+
+      <div className="lg:hidden sticky bottom-0 z-20 border-t border-[#222] bg-[#0f0f0f]/95 backdrop-blur px-3 py-3 space-y-2">
+        {isActive && (
+          <>
+            <button
+              onClick={handleSubmit}
+              disabled={phase === 'submitting'}
+              className="w-full py-2.5 bg-[#2f8f5f] hover:bg-[#37a26a] text-[#f4fff8] font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {phase === 'submitting' ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-[#f4fff8] border-t-transparent rounded-full animate-spin" />
+                  <span>Validating...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Submit</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleSkip}
+              className="w-full py-2 border border-[#333] text-gray-400 rounded hover:border-[#ff4444] hover:text-[#ff4444] transition-colors text-sm"
+            >
+              Give Up
+            </button>
+          </>
+        )}
       </div>
 
-      {/* Terminal panel */}
-      <div className="flex-1 flex flex-col relative">
-        <Terminal port={ttydPort} onFocus={handleTerminalFocus} />
-      </div>
-
-      {/* Success Modal */}
       {showSuccessModal && result?.passed && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
-          <div className="border border-[#00ff88] shadow-[0_0_40px_rgba(0,255,136,0.3)] rounded-lg p-8 max-w-md w-full mx-4 bg-[#111]">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-40 p-4">
+          <div className="border border-[#00ff88] shadow-[0_0_40px_rgba(0,255,136,0.3)] rounded-lg p-6 sm:p-8 max-w-md w-full bg-[#111]">
             <div className="text-center mb-6">
               <div className="text-5xl mb-4">🎉</div>
               <h2 className="text-2xl font-bold text-[#00ff88] mb-2">Challenge Completed!</h2>
               <p className="text-gray-400 text-sm">Great job! You've successfully solved this challenge.</p>
             </div>
-            
+
             {result.output && (
               <div className="mb-6">
                 <p className="text-xs text-[#666] mb-2">Output:</p>
@@ -470,10 +740,13 @@ export default function Challenge() {
                 </pre>
               </div>
             )}
-            
+
             <div className="flex gap-3">
               <button
-                onClick={() => { setShowSuccessModal(false); setPhase('active'); }}
+                onClick={() => {
+                  setShowSuccessModal(false)
+                  setPhase('active')
+                }}
                 className="flex-1 py-2.5 border border-[#333] text-gray-400 rounded hover:border-[#555] transition-colors"
               >
                 Stay Here
@@ -489,16 +762,15 @@ export default function Challenge() {
         </div>
       )}
 
-      {/* Failure Modal */}
       {showFailureModal && result && !result.passed && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
-          <div className="border border-[#ff4444] shadow-[0_0_40px_rgba(255,68,68,0.2)] rounded-lg p-8 max-w-md w-full mx-4 bg-[#111]">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-40 p-4">
+          <div className="border border-[#ff4444] shadow-[0_0_40px_rgba(255,68,68,0.2)] rounded-lg p-6 sm:p-8 max-w-md w-full bg-[#111]">
             <div className="text-center mb-6">
               <div className="text-5xl mb-4">💀</div>
               <h2 className="text-2xl font-bold text-[#ff4444] mb-2">Not Quite Right</h2>
               <p className="text-gray-400 text-sm">Your solution didn't pass validation.</p>
             </div>
-            
+
             <div className="mb-6 space-y-4">
               {result.expected && (
                 <div>
@@ -508,7 +780,7 @@ export default function Challenge() {
                   </pre>
                 </div>
               )}
-              
+
               {result.actual && (
                 <div>
                   <p className="text-xs text-[#666] mb-1">Your output:</p>
@@ -517,7 +789,7 @@ export default function Challenge() {
                   </pre>
                 </div>
               )}
-              
+
               {result.output && !result.expected && (
                 <div>
                   <p className="text-xs text-[#666] mb-1">Validator output:</p>
@@ -527,15 +799,13 @@ export default function Challenge() {
                 </div>
               )}
             </div>
-            
+
             {attempts >= 3 && !showSolution && (
               <div className="mb-4 p-3 bg-[#ffaa00]/10 border border-[#ffaa00]/30 rounded">
-                <p className="text-xs text-[#ffaa00] text-center">
-                  💡 After 3 failed attempts, you can view the solution
-                </p>
+                <p className="text-xs text-[#ffaa00] text-center">💡 After 3 failed attempts, you can view the solution</p>
               </div>
             )}
-            
+
             <div className="flex gap-3">
               <button
                 onClick={handleRetry}
@@ -564,18 +834,15 @@ export default function Challenge() {
         </div>
       )}
 
-      {/* Give Up Confirmation Dialog */}
       {showGiveUpDialog && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
-          <div className="border border-[#ffaa00] rounded-lg p-6 max-w-sm w-full mx-4 bg-[#111]">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-40 p-4">
+          <div className="border border-[#ffaa00] rounded-lg p-6 max-w-sm w-full bg-[#111]">
             <div className="text-center mb-4">
               <div className="text-4xl mb-3">🏳️</div>
               <h2 className="text-xl font-bold text-[#ffaa00] mb-2">Give Up?</h2>
-              <p className="text-gray-400 text-sm">
-                You'll lose progress on this challenge. Are you sure?
-              </p>
+              <p className="text-gray-400 text-sm">You'll lose progress on this challenge. Are you sure?</p>
             </div>
-            
+
             <div className="flex gap-3">
               <button
                 onClick={() => setShowGiveUpDialog(false)}
@@ -593,6 +860,10 @@ export default function Challenge() {
           </div>
         </div>
       )}
+
+      <div className="hidden lg:block absolute bottom-4 right-4 text-xs text-[#666] bg-[#111]/80 px-2 py-1 rounded pointer-events-none">
+        Press F2 (or Ctrl+`) to focus terminal
+      </div>
     </div>
-  );
+  )
 }

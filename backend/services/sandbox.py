@@ -5,9 +5,14 @@ from docker.types import ContainerSpec, Resources
 from typing import Optional, Dict
 from datetime import datetime, timedelta
 import random
+from pathlib import Path
+
+from docker.errors import ImageNotFound, APIError, BuildError, DockerException
 
 # Global network name for isolated sandboxes
 SANDBOX_NETWORK = "cyberlab-sandbox"
+DOCKER_CONTEXT_ROOT = Path(__file__).resolve().parents[2] / "docker"
+DEFAULT_FALLBACK_IMAGE = "rocky9-base"
 
 
 def ensure_sandbox_network(client=None):
@@ -31,6 +36,45 @@ class SandboxService:
         self.client = docker.from_env()
         self.label_key = "cyberlab"
         self.label_value = "true"
+
+    def _image_exists(self, image_name: str) -> bool:
+        try:
+            self.client.images.get(image_name)
+            return True
+        except ImageNotFound:
+            return False
+
+    def _resolve_or_build_image(self, image: str) -> str:
+        """Resolve image name locally or build it from local docker context if missing."""
+        short_name = image.replace("cyberlab-", "", 1) if image.startswith("cyberlab-") else image
+        canonical_name = image if image.startswith("cyberlab-") else f"cyberlab-{image}"
+
+        candidates = [canonical_name, short_name]
+        for candidate in candidates:
+            if self._image_exists(candidate):
+                return candidate
+
+        context_dir = DOCKER_CONTEXT_ROOT / short_name
+        dockerfile = context_dir / "Dockerfile"
+        if context_dir.exists() and dockerfile.exists():
+            print(f"[sandbox] Building missing image {canonical_name} from {context_dir}...")
+            try:
+                self.client.images.build(
+                    path=str(DOCKER_CONTEXT_ROOT),
+                    dockerfile=f"{short_name}/Dockerfile",
+                    tag=canonical_name,
+                    rm=True,
+                    pull=True,
+                )
+                return canonical_name
+            except (BuildError, APIError, DockerException) as e:
+                raise RuntimeError(
+                    f"Failed to build sandbox image '{canonical_name}' from '{context_dir}': {e}"
+                ) from e
+
+        raise RuntimeError(
+            f"Sandbox image '{canonical_name}' not found locally and no build context exists at '{context_dir}'."
+        )
 
     def find_free_port(self, start: int, end: int) -> int:
         """Find a free port in the given range."""
@@ -58,34 +102,68 @@ class SandboxService:
         Returns:
             Dict with container_id, port, and status
         """
-        port = self.find_free_port(17000, 17999)
+        def _run_container_with_image(resolved_image: str) -> Dict:
+            import time
 
-        # Prepend 'cyberlab-' to image name if not already present
-        full_image = image if image.startswith("cyberlab-") else f"cyberlab-{image}"
-        
-        import time
-        container = self.client.containers.run(
-            image=full_image,
-            detach=True,
-            ports={"7681/tcp": port},
-            name=f"cyberlab-{challenge_id[:8]}-{int(time.time())}",
-            labels={
-                self.label_key: self.label_value,
+            port = self.find_free_port(17000, 17999)
+            container = self.client.containers.run(
+                image=resolved_image,
+                command=[
+                    "/usr/local/bin/ttyd",
+                    "--writable",
+                    "-p",
+                    "7681",
+                    "bash",
+                ],
+                detach=True,
+                ports={"7681/tcp": port},
+                name=f"cyberlab-{challenge_id[:8]}-{int(time.time())}",
+                labels={
+                    self.label_key: self.label_value,
+                    "challenge_id": challenge_id,
+                    "started_at": datetime.utcnow().isoformat(),
+                },
+                mem_limit="512m",
+                cpu_period=100000,
+                cpu_quota=50000,
+                remove=False,
+                network=SANDBOX_NETWORK,
+            )
+            return {
+                "container_id": container.id,
+                "port": port,
+                "status": "running",
                 "challenge_id": challenge_id,
-                "started_at": datetime.utcnow().isoformat(),
-            },
-            mem_limit="512m",
-            cpu_period=100000,
-            cpu_quota=50000,
-            remove=False,
-        )
+                "resolved_image": resolved_image,
+            }
 
-        return {
-            "container_id": container.id,
-            "port": port,
-            "status": "running",
-            "challenge_id": challenge_id,
-        }
+        ensure_sandbox_network(self.client)
+
+        requested_image = image
+        try:
+            resolved_image = self._resolve_or_build_image(requested_image)
+            result = _run_container_with_image(resolved_image)
+            result["requested_image"] = requested_image
+            result["fallback_used"] = False
+            return result
+        except (DockerException, APIError, RuntimeError) as primary_error:
+            # Safety net: if requested image is unavailable/unbuildable, fallback to rocky base.
+            if requested_image != DEFAULT_FALLBACK_IMAGE:
+                try:
+                    fallback_resolved = self._resolve_or_build_image(DEFAULT_FALLBACK_IMAGE)
+                    result = _run_container_with_image(fallback_resolved)
+                    result["requested_image"] = requested_image
+                    result["fallback_used"] = True
+                    result["fallback_reason"] = str(primary_error)
+                    return result
+                except (DockerException, APIError, RuntimeError) as fallback_error:
+                    raise RuntimeError(
+                        "Failed to start sandbox. "
+                        f"Requested image '{requested_image}' error: {primary_error}. "
+                        f"Fallback image '{DEFAULT_FALLBACK_IMAGE}' error: {fallback_error}"
+                    ) from fallback_error
+
+            raise RuntimeError(f"Failed to start sandbox for image '{requested_image}': {primary_error}") from primary_error
 
     def run_validation(self, container_id: str, validation_script: str) -> Dict:
         """

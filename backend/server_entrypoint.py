@@ -3,10 +3,12 @@
 Server entrypoint to ensure proper route registration
 """
 import sys
-import os
+from pathlib import Path
 
 # Add the backend to the path
-sys.path.insert(0, '/root/cyberlab/backend')
+BACKEND_DIR = Path(__file__).resolve().parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 from main import app
 from routers import grinder

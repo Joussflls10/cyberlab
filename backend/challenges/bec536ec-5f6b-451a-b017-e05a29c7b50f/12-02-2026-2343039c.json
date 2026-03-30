@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create `12-02-2026_concepts.txt` and explain how the concept '12/02/2026' applies to this topic.",
+    "hint": "Write at least two lines and include the concept name explicitly.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f 12-02-2026_concepts.txt ] || exit 1\ngrep -qi \"12/02/2026\" 12-02-2026_concepts.txt || exit 1\n[ $(wc -l < 12-02-2026_concepts.txt) -ge 2 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `12-02-2026_checklist_2.md` with at least three checklist items describing practical verification steps for topic '12/02/2026'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f 12-02-2026_checklist_2.md ] || exit 1\ngrep -Ec '^- \\[ \\]' 12-02-2026_checklist_2.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `12-02-2026_checklist_3.md` with at least three checklist items describing practical verification steps for topic '12/02/2026'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f 12-02-2026_checklist_3.md ] || exit 1\ngrep -Ec '^- \\[ \\]' 12-02-2026_checklist_3.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  }
+]

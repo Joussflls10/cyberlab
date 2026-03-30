@@ -61,7 +61,7 @@ async def process_new_file(file_path: str):
     """Process a new file through the grinder pipeline."""
     logger.info(f"Starting processing of: {file_path}")
     try:
-        result = await process_file(file_path, engine)
+        result = await process_file(file_path, source_filename=Path(file_path).name)
         logger.info(f"Processing complete: {result}")
     except Exception as e:
         logger.error(f"Error processing file {file_path}: {e}")

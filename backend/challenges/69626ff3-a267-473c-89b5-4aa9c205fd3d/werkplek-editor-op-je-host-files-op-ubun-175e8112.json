@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Create `werkplek-editor-op-je-host-files-op-ubun_concepts.txt` and explain how the concept 'Werkplek: editor op je host, files op Ubuntu (Remote SSH)' applies to this topic.",
+    "hint": "Write at least two lines and include the concept name explicitly.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f werkplek-editor-op-je-host-files-op-ubun_concepts.txt ] || exit 1\ngrep -qi \"Werkplek: editor op je host, files op Ubuntu (Remote SSH)\" werkplek-editor-op-je-host-files-op-ubun_concepts.txt || exit 1\n[ $(wc -l < werkplek-editor-op-je-host-files-op-ubun_concepts.txt) -ge 2 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `werkplek-editor-op-je-host-files-op-ubun_checklist_2.md` with at least three checklist items describing practical verification steps for topic 'Werkplek: editor op je host, files op Ubuntu (Remote SSH)'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f werkplek-editor-op-je-host-files-op-ubun_checklist_2.md ] || exit 1\ngrep -Ec '^- \\[ \\]' werkplek-editor-op-je-host-files-op-ubun_checklist_2.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create `werkplek-editor-op-je-host-files-op-ubun_checklist_3.md` with at least three checklist items describing practical verification steps for topic 'Werkplek: editor op je host, files op Ubuntu (Remote SSH)'.",
+    "hint": "Use markdown checklist format with '- [ ]'.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f werkplek-editor-op-je-host-files-op-ubun_checklist_3.md ] || exit 1\ngrep -Ec '^- \\[ \\]' werkplek-editor-op-je-host-files-op-ubun_checklist_3.md | awk '{exit ($1>=3)?0:1}'\nexit 0",
+    "expected_output": null
+  }
+]

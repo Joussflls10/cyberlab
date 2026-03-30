@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { getCourse, getTopics, getChallenges, getCourseProgress, deleteCourse } from '../api/client'
 import { ChevronDown, ChevronRight, Terminal, FileText, Code, Lock, CheckCircle, Circle, SkipForward, Trash2 } from 'lucide-react'
@@ -145,11 +145,13 @@ function ChallengeCard({ challenge, onClick }: { challenge: Challenge; onClick: 
 function TopicSection({ 
   topic, 
   expanded, 
-  onToggle 
+  onToggle,
+  onChallengeOpen,
 }: { 
   topic: Topic & { challenges: Challenge[] }; 
   expanded: boolean; 
-  onToggle: () => void 
+  onToggle: () => void;
+  onChallengeOpen: (challengeId: string) => void;
 }) {
   const completedCount = topic.challenges.filter((c: Challenge) => c.status === 'completed').length
   const totalCount = topic.challenges.length
@@ -193,7 +195,7 @@ function TopicSection({
             <ChallengeCard
               key={challenge.id}
               challenge={challenge}
-              onClick={() => window.location.href = `/challenge/${challenge.id}`}
+              onClick={() => onChallengeOpen(challenge.id)}
             />
           ))}
         </div>
@@ -256,6 +258,36 @@ export default function CoursePage() {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
+  const orderedChallenges = useMemo(() => {
+    return [...topics]
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .flatMap(topic =>
+        [...topic.challenges].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      )
+  }, [topics])
+
+  const challengeRouteStateFor = (challengeId: string) => {
+    const challengeIndex = orderedChallenges.findIndex(challenge => challenge.id === challengeId)
+    if (challengeIndex < 0) return undefined
+
+    return {
+      courseId: id,
+      challengeIndex,
+      challengeTotal: orderedChallenges.length,
+      challengeIds: orderedChallenges.map(challenge => challenge.id),
+    }
+  }
+
+  const navigateToChallenge = (challengeId: string) => {
+    const state = challengeRouteStateFor(challengeId)
+    if (state) {
+      navigate(`/challenge/${challengeId}`, { state })
+      return
+    }
+
+    navigate(`/challenge/${challengeId}`)
+  }
+
   useEffect(() => {
     async function loadCourseData() {
       if (!id) return
@@ -271,9 +303,28 @@ export default function CoursePage() {
         // Load topics with challenges
         const topicsData = await getTopics(id)
         const topicsWithChallenges = await Promise.all(
-          topicsData.map(async (topic: Topic) => {
-            const challenges = await getChallenges(topic.id)
-            return { ...topic, challenges }
+          (topicsData as any[]).map(async (topic: any) => {
+            const challengesData = await getChallenges(topic.id)
+            const normalizedChallenges: Challenge[] = (challengesData as any[]).map((challenge: any) => ({
+              id: challenge.id,
+              topic_id: challenge.topic_id,
+              title: challenge.title || challenge.question?.slice(0, 80) || 'Challenge',
+              description: challenge.description || challenge.question || '',
+              question: challenge.question || '',
+              difficulty: challenge.difficulty || 'easy',
+              type: challenge.type || 'command',
+              status: challenge.status || 'available',
+              order: challenge.order || 0,
+            }))
+
+            return {
+              id: topic.id,
+              course_id: topic.course_id || id,
+              title: topic.title || topic.name || 'Topic',
+              description: topic.description || '',
+              order: topic.order || 0,
+              challenges: normalizedChallenges,
+            }
           })
         )
         setTopics(topicsWithChallenges)
@@ -301,14 +352,12 @@ export default function CoursePage() {
   }, [id])
 
   const handleStartNextChallenge = () => {
-    // Find first incomplete challenge
-    for (const topic of topics) {
-      for (const challenge of topic.challenges) {
-        if (challenge.status !== 'completed' && challenge.status !== 'locked') {
-          navigate(`/challenge/${challenge.id}`)
-          return
-        }
-      }
+    const nextChallenge = orderedChallenges.find(
+      challenge => challenge.status !== 'completed' && challenge.status !== 'locked'
+    )
+
+    if (nextChallenge) {
+      navigateToChallenge(nextChallenge.id)
     }
   }
 
@@ -392,12 +441,12 @@ export default function CoursePage() {
 
         {/* Course Header */}
         <div className="border border-border rounded-lg bg-surface p-6">
-          <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-primary mb-2">{course.title}</h1>
               <p className="text-gray-400 text-lg">{course.description}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex w-full sm:w-auto gap-2">
               <button
                 onClick={handleDeleteCourse}
                 disabled={deleting}
@@ -407,9 +456,16 @@ export default function CoursePage() {
                 <Trash2 className="w-5 h-5" />
               </button>
               <button
+                onClick={() => navigate(`/admin/courses/${course.id}/challenges`)}
+                className="px-4 py-3 border border-border text-gray-300 hover:border-primary/40 hover:text-primary transition-colors rounded-lg"
+                title="Review generated challenges"
+              >
+                Review Challenges
+              </button>
+              <button
                 onClick={handleStartNextChallenge}
                 disabled={completedChallenges >= totalChallenges}
-                className="px-6 py-3 bg-primary text-background font-semibold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 sm:flex-none px-6 py-3 bg-primary text-background font-semibold rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {completedChallenges >= totalChallenges ? '✓ Course Complete' : 'Start Next Challenge →'}
               </button>
@@ -463,6 +519,7 @@ export default function CoursePage() {
                 topic={topic}
                 expanded={expandedTopics.has(topic.id)}
                 onToggle={() => toggleTopic(topic.id)}
+                onChallengeOpen={(challengeId) => navigateToChallenge(challengeId)}
               />
             ))}
           </div>

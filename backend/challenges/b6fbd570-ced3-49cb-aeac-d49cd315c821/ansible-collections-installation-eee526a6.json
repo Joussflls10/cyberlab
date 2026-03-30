@@ -1,0 +1,29 @@
+[
+  {
+    "question": "Run `ansible-galaxy --version` (or equivalent) and save the output to `ansible-galaxy_version.txt`.",
+    "hint": "Use shell redirection and keep the output file in the working directory.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "easy",
+    "validation_script": "#!/bin/bash\ncommand -v ansible-galaxy >/dev/null 2>&1 || exit 1\n[ -s ansible-galaxy_version.txt ] || exit 1\ngrep -qi 'ansible-galaxy' ansible-galaxy_version.txt || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Capture `ansible-galaxy --help` output to `ansible-galaxy_help.txt` and confirm the file is non-empty.",
+    "hint": "Use `>` redirection and verify with `wc -l`.",
+    "type": "command",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\ncommand -v ansible-galaxy >/dev/null 2>&1 || exit 1\n[ -s ansible-galaxy_help.txt ] || exit 1\n[ $(wc -l < ansible-galaxy_help.txt) -ge 3 ] || exit 1\nexit 0",
+    "expected_output": null
+  },
+  {
+    "question": "Create an executable script `verify_ansible-galaxy.sh` that checks `ansible-galaxy` availability and prints a version/help line.",
+    "hint": "Include a shebang, a command check, and make the script executable.",
+    "type": "file",
+    "sandbox_image": "rocky9-base",
+    "difficulty": "medium",
+    "validation_script": "#!/bin/bash\n[ -f verify_ansible-galaxy.sh ] || exit 1\ngrep -q 'ansible-galaxy' verify_ansible-galaxy.sh || exit 1\n[ -x verify_ansible-galaxy.sh ] || exit 1\n./verify_ansible-galaxy.sh > /tmp/ansible-collections-installation_ansible-galaxy_verify.log 2>&1 || exit 1\n[ -s /tmp/ansible-collections-installation_ansible-galaxy_verify.log ] || exit 1\nexit 0",
+    "expected_output": null
+  }
+]
