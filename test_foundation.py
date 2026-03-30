@@ -9,6 +9,11 @@ import os
 import hashlib
 from datetime import datetime
 
+if __name__ != "__main__" and "pytest" in sys.modules:
+    import pytest
+
+    pytest.skip("manual smoke script; excluded from automated pytest runs", allow_module_level=True)
+
 # Set up paths
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.getcwd(), "backend"))

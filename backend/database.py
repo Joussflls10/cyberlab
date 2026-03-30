@@ -3,7 +3,7 @@
 from sqlmodel import SQLModel, create_engine, Session, select
 from sqlalchemy.orm import sessionmaker
 from typing import Generator
-from datetime import datetime
+from datetime import UTC, datetime
 
 try:
     from config import get_settings
@@ -11,6 +11,11 @@ except ImportError:
     from .config import get_settings
 
 settings = get_settings()
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
 
 # Create engine with SQLite-specific configuration
 connect_args = {"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
@@ -70,7 +75,7 @@ def cleanup_stalled_jobs() -> int:
         for job in stalled_jobs:
             job.status = "error"
             job.error_message = "interrupted by restart"
-            job.updated_at = datetime.utcnow()
+            job.updated_at = _utc_now()
             count += 1
         
         if count > 0:

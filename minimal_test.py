@@ -3,12 +3,15 @@
 Minimal test to verify the jobs endpoint works
 """
 
+import sys
+
+if __name__ != "__main__" and "pytest" in sys.modules:
+    import pytest
+
+    pytest.skip("manual smoke script; excluded from automated pytest runs", allow_module_level=True)
+
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
 import uuid
-from sqlmodel import SQLModel, Session, create_engine, select
-from models.import_job import ImportJob
-from database import engine
 import os
 
 app = FastAPI()

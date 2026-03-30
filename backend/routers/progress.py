@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 from typing import List
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from collections import defaultdict
 
 from models.progress import (
@@ -16,6 +16,11 @@ from models.challenge import Challenge
 from database import get_session
 
 router = APIRouter()
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
 
 
 @router.get("/summary")
@@ -193,7 +198,7 @@ async def get_progress_stats(user_id: str = "default"):
             if (p.last_attempted_at or p.passed_at)
         }
 
-        today = datetime.utcnow().date()
+        today = _utc_now().date()
         day = today if today in active_days else today - timedelta(days=1)
         current_streak = 0
         while day in active_days:
@@ -224,7 +229,7 @@ async def get_activity_heatmap(user_id: str = "default", days: int = 365):
         all_progress = get_all_user_progress(session, user_id)
         challenge_progress = [p for p in all_progress if p.challenge_id]
 
-        start_date = datetime.utcnow().date() - timedelta(days=days - 1)
+        start_date = _utc_now().date() - timedelta(days=days - 1)
         daily_counts = defaultdict(int)
 
         for p in challenge_progress:

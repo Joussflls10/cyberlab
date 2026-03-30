@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Test script that creates the exact same app as main.py"""
 import sys
+
+if __name__ != "__main__" and "pytest" in sys.modules:
+    import pytest
+
+    pytest.skip("manual smoke script; excluded from automated pytest runs", allow_module_level=True)
+
 sys.path.insert(0, '/root/cyberlab/backend')
 
 from fastapi import FastAPI

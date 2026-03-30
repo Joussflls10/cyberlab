@@ -7,7 +7,7 @@ import logging
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import UTC, datetime
 import uuid
 
 import fitz  # pymupdf
@@ -26,6 +26,8 @@ from models.import_job import ImportJob
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+settings = get_settings()
+GRINDER_UPLOAD_DIR = Path(settings.GRINDER_UPLOAD_DIR).resolve()
 
 # Configuration per spec
 MAX_CHUNK_TOKENS = 6000
@@ -312,6 +314,46 @@ LINUX VALIDATION EXAMPLES:
 
 # Global semaphore to limit concurrent processing
 _job_semaphore = asyncio.Semaphore(MAX_CONCURRENT_JOBS)
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
+
+
+def _cleanup_uploaded_source_file(file_path: str, job_id: Optional[str] = None) -> bool:
+    """Delete managed uploaded source files after successful processing.
+
+    Only files inside the configured grinder upload directory are removed.
+    Returns True when a file was deleted.
+    """
+    try:
+        source_path = Path(file_path).resolve()
+    except Exception:
+        return False
+
+    try:
+        if not source_path.is_relative_to(GRINDER_UPLOAD_DIR):
+            return False
+    except Exception:
+        return False
+
+    if not source_path.exists() or not source_path.is_file():
+        return False
+
+    try:
+        source_path.unlink()
+    except Exception as exc:
+        logger.warning("[grinder] Failed to clean up uploaded file %s: %s", source_path, exc)
+        if job_id:
+            _add_job_log(job_id, f"Failed to clean up uploaded source file {source_path.name}: {exc}", "warn")
+        return False
+
+    cleanup_msg = f"Cleaned up uploaded source file: {source_path.name}"
+    logger.info("[grinder] %s", cleanup_msg)
+    if job_id:
+        _add_job_log(job_id, cleanup_msg)
+    return True
 
 
 def _fallback_extract_topics(text: str) -> Dict[str, Any]:
@@ -1575,8 +1617,8 @@ def _update_job_status(job_id: str, status: str, course_id: Optional[str] = None
             if error_message:
                 job.error_message = error_message
             if status in ["completed", "error"]:
-                job.completed_at = datetime.utcnow()
-            job.updated_at = datetime.utcnow()
+                job.completed_at = _utc_now()
+            job.updated_at = _utc_now()
             session.commit()
 
 
@@ -1650,6 +1692,7 @@ async def process_file_with_job(job_id: str, file_path: str, source_filename: Op
                         _update_job_counts(job_id, existing.topic_count, existing.challenge_count)
                         _update_job_status(job_id, "completed", course_id=existing.id)
                         _update_job_progress(job_id, 100)
+                        _cleanup_uploaded_source_file(file_path, job_id=job_id)
                         return
             
             _update_job_progress(job_id, 5)
@@ -1967,6 +2010,7 @@ async def process_file_with_job(job_id: str, file_path: str, source_filename: Op
             _update_job_progress(job_id, 100)
             if not _is_job_cancelled(job_id):
                 _update_job_status(job_id, "completed", course_id=course_id)
+                _cleanup_uploaded_source_file(file_path, job_id=job_id)
             
         except Exception as e:
             error_msg = str(e)
@@ -1995,6 +2039,7 @@ async def process_file(file_path: str, source_filename: Optional[str] = None) ->
                 logger.info("Deleted empty course, starting fresh processing...")
             else:
                 logger.info(f"File already processed: {existing.id}")
+                _cleanup_uploaded_source_file(file_path)
                 return {
                     "course_id": existing.id,
                     "topics_count": existing.topic_count,
@@ -2246,6 +2291,7 @@ async def process_file(file_path: str, source_filename: Optional[str] = None) ->
             session.commit()
     
     logger.info(f"Processing complete: {len(topics)} topics, {total_challenges} challenges")
+    _cleanup_uploaded_source_file(file_path)
     
     return {
         "course_id": course_id,

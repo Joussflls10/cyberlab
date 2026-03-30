@@ -2,7 +2,12 @@
 
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
 
 
 class Challenge(SQLModel, table=True):
@@ -22,7 +27,7 @@ class Challenge(SQLModel, table=True):
     order: int = Field(default=0, index=True)
     difficulty: str = Field(default="easy", max_length=20)  # easy, medium, hard
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    created_at: datetime = Field(default_factory=_utc_now, index=True)
 
     # Relationships
     course: Optional["Course"] = Relationship(back_populates="challenges")
@@ -98,5 +103,5 @@ def update_challenge_attempt(session, challenge_id: str, user_id: str, success: 
     if progress:
         progress.attempts += 1
         if success:
-            progress.passed_at = datetime.utcnow()
+            progress.passed_at = _utc_now()
         session.commit()

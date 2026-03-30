@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import UTC, datetime
 import uuid
 
 from services.sandbox import start_sandbox, run_validation, stop_sandbox
@@ -12,6 +12,11 @@ from models.progress import UserProgress, create_or_update_progress
 from database import get_session
 
 router = APIRouter()
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
 
 
 def derive_challenge_title(question: str) -> str:
@@ -97,8 +102,8 @@ async def submit_challenge(challenge_id: str, request: SubmitRequest):
             topic_id=challenge.topic_id,
             status="passed" if passed else "attempted",
             attempts=(progress.attempts + 1) if progress else 1,
-            passed_at=datetime.utcnow() if passed else None,
-            last_attempted_at=datetime.utcnow(),
+            passed_at=_utc_now() if passed else None,
+            last_attempted_at=_utc_now(),
         )
 
         # Keep sandbox running on failed attempts so users can retry without losing state.
@@ -137,7 +142,7 @@ async def skip_challenge(challenge_id: str, request: Optional[SkipRequest] = Non
             challenge_id=challenge_id,
             topic_id=challenge.topic_id,
             status="skipped",
-            last_attempted_at=datetime.utcnow(),
+            last_attempted_at=_utc_now(),
         )
         
         return {"status": "skipped", "challenge_id": challenge_id}

@@ -6,6 +6,11 @@ Test script to verify routes are properly registered
 import sys
 import os
 
+if __name__ != "__main__" and "pytest" in sys.modules:
+    import pytest
+
+    pytest.skip("manual smoke script; excluded from automated pytest runs", allow_module_level=True)
+
 # Add backend to path
 sys.path.insert(0, '/root/cyberlab/backend')
 

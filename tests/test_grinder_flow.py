@@ -12,13 +12,13 @@ import os
 import sys
 import importlib
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlmodel import SQLModel, Session, create_engine
+from sqlmodel import SQLModel, Session, create_engine, select
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -76,12 +76,15 @@ def test_engine(tmp_path):
 def patched_grinder(monkeypatch, test_engine, tmp_path):
     upload_dir = tmp_path / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir = tmp_path / "challenge-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(grinder_router_module, "engine", test_engine)
     monkeypatch.setattr(grinder_service, "engine", test_engine)
     monkeypatch.setattr(grinder_router_module, "UPLOAD_DIR", str(upload_dir))
+    monkeypatch.setattr(grinder_service, "CHALLENGES_CACHE_DIR", cache_dir)
 
-    return {"engine": test_engine, "upload_dir": upload_dir}
+    return {"engine": test_engine, "upload_dir": upload_dir, "cache_dir": cache_dir}
 
 
 @pytest.fixture
@@ -112,8 +115,8 @@ def test_create_job_core_flow_updates_status(client, patched_grinder, monkeypatc
             job.progress_percent = 100
             job.topics_count = 2
             job.challenges_count = 5
-            job.updated_at = datetime.utcnow()
-            job.completed_at = datetime.utcnow()
+            job.updated_at = datetime.now(UTC)
+            job.completed_at = datetime.now(UTC)
             session.add(job)
             session.commit()
 
@@ -136,8 +139,754 @@ def test_create_job_core_flow_updates_status(client, patched_grinder, monkeypatc
     status = status_resp.json()
     assert status["status"] == "completed"
     assert status["progress_percent"] == 100
+    assert status["retriable"] is False
     assert status["topics_count"] == 2
     assert status["challenges_count"] == 5
+
+
+def test_get_job_status_reports_retriable_for_failed_job(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+
+    source_file = tmp_path / "failed-status.pdf"
+    source_file.write_bytes(b"failed-status")
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="job-status-failed",
+                file_path=str(source_file),
+                status="error",
+                error_message="provider timeout",
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/grinder/jobs/job-status-failed")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert payload["retriable"] is True
+
+
+def test_list_jobs_filters_and_marks_retriable(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+
+    retryable_source = tmp_path / "retryable-source.pdf"
+    retryable_source.write_bytes(b"retryable")
+
+    with Session(engine) as session:
+        retryable_error = ImportJob(
+            id="job-error-retriable",
+            file_path=str(retryable_source),
+            status="error",
+            error_message="transient ai failure",
+        )
+        retryable_error.add_log("Starting processing of Original-Lab.pdf")
+
+        missing_error = ImportJob(
+            id="job-error-missing",
+            file_path=str(tmp_path / "missing-source.pdf"),
+            status="error",
+            error_message="parse failed",
+        )
+
+        session.add(retryable_error)
+        session.add(missing_error)
+        session.add(ImportJob(id="job-processing", file_path=str(tmp_path / "processing.pdf"), status="processing"))
+        session.commit()
+
+    response = client.get("/api/grinder/jobs?status=error&limit=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 2
+    assert len(payload["jobs"]) == 2
+    assert all(job["status"] == "error" for job in payload["jobs"])
+
+    retriable_map = {job["id"]: job["retriable"] for job in payload["jobs"]}
+    assert retriable_map["job-error-retriable"] is True
+    assert retriable_map["job-error-missing"] is False
+
+
+def test_list_jobs_rejects_invalid_status(client):
+    response = client.get("/api/grinder/jobs?status=unknown")
+
+    assert response.status_code == 400
+    assert "Invalid status" in response.json()["detail"]
+
+
+def test_retry_job_requeues_failed_job(client, patched_grinder, monkeypatch, tmp_path):
+    engine = patched_grinder["engine"]
+
+    source_file = tmp_path / "retry-source.pdf"
+    source_file.write_bytes(b"retry-source")
+
+    with Session(engine) as session:
+        failed_job = ImportJob(
+            id="job-failed-retry",
+            file_path=str(source_file),
+            status="error",
+            error_message="Cancelled by user",
+        )
+        failed_job.add_log("Starting processing of Retry-Lab.pdf")
+        session.add(failed_job)
+        session.commit()
+
+    task_calls: list[tuple[str, str, str | None]] = []
+
+    async def fake_process_file_with_job(job_id: str, _file_path: str, source_filename: str | None = None) -> None:
+        task_calls.append((job_id, _file_path, source_filename))
+
+    monkeypatch.setattr(grinder_router_module, "process_file_with_job", fake_process_file_with_job)
+    monkeypatch.setattr(grinder_router_module.asyncio, "create_task", lambda coro: _ImmediateTask(coro))
+
+    response = client.post("/api/grinder/jobs/job-failed-retry/retry")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["job_id"] != "job-failed-retry"
+
+    assert len(task_calls) == 1
+    assert task_calls[0][0] == payload["job_id"]
+    assert task_calls[0][1] == str(source_file)
+    assert task_calls[0][2] == "Retry-Lab.pdf"
+
+    with Session(engine) as session:
+        retry_job = session.get(ImportJob, payload["job_id"])
+        assert retry_job is not None
+        assert retry_job.status == "pending"
+        assert retry_job.file_path == str(source_file)
+
+
+def test_retry_job_rejects_when_source_file_missing(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+    missing_file = tmp_path / "source-missing.pdf"
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="job-missing-source",
+                file_path=str(missing_file),
+                status="error",
+                error_message="AI error",
+            )
+        )
+        session.commit()
+
+    response = client.post("/api/grinder/jobs/job-missing-source/retry")
+
+    assert response.status_code == 409
+    assert "no longer available" in response.json()["detail"].lower()
+
+
+def test_retry_job_rejects_when_active_job_exists_for_same_source(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+
+    source_file = tmp_path / "retry-collision.pdf"
+    source_file.write_bytes(b"retry-collision")
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="job-retry-collision-failed",
+                file_path=str(source_file),
+                status="error",
+                error_message="temporary failure",
+            )
+        )
+        session.add(
+            ImportJob(
+                id="job-retry-collision-active",
+                file_path=str(source_file),
+                status="processing",
+            )
+        )
+        session.commit()
+
+    response = client.post("/api/grinder/jobs/job-retry-collision-failed/retry")
+    assert response.status_code == 409
+    assert "active job already exists" in response.json()["detail"].lower()
+
+
+def test_retry_job_rejects_active_job(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+    source_file = tmp_path / "active.pdf"
+    source_file.write_bytes(b"active")
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="job-active",
+                file_path=str(source_file),
+                status="processing",
+            )
+        )
+        session.commit()
+
+    response = client.post("/api/grinder/jobs/job-active/retry")
+
+    assert response.status_code == 409
+    assert "cannot be retried" in response.json()["detail"].lower()
+
+
+def test_retry_failed_jobs_bulk_requeues_available_sources_only(client, patched_grinder, monkeypatch, tmp_path):
+    engine = patched_grinder["engine"]
+
+    good_source = tmp_path / "bulk-good.pdf"
+    good_source.write_bytes(b"bulk-good")
+    missing_source = tmp_path / "bulk-missing.pdf"
+
+    with Session(engine) as session:
+        good_failed_job = ImportJob(
+            id="bulk-failed-good",
+            file_path=str(good_source),
+            status="error",
+            error_message="temporary provider failure",
+        )
+        good_failed_job.add_log("Starting processing of Bulk-Good.pdf")
+
+        missing_failed_job = ImportJob(
+            id="bulk-failed-missing",
+            file_path=str(missing_source),
+            status="error",
+            error_message="parse failed",
+        )
+
+        session.add(good_failed_job)
+        session.add(missing_failed_job)
+        session.commit()
+
+    task_calls: list[tuple[str, str, str | None]] = []
+
+    async def fake_process_file_with_job(job_id: str, _file_path: str, source_filename: str | None = None) -> None:
+        task_calls.append((job_id, _file_path, source_filename))
+
+    monkeypatch.setattr(grinder_router_module, "process_file_with_job", fake_process_file_with_job)
+    monkeypatch.setattr(grinder_router_module.asyncio, "create_task", lambda coro: _ImmediateTask(coro))
+
+    response = client.post("/api/grinder/jobs/failed/retry?limit=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["scanned_failed_jobs"] == 2
+    assert payload["retried_count"] == 1
+    assert payload["skipped_active_job"] == 0
+    assert payload["skipped_missing_file"] == 1
+    assert len(payload["retried_job_ids"]) == 1
+
+    retried_job_id = payload["retried_job_ids"][0]
+    assert len(task_calls) == 1
+    assert task_calls[0][0] == retried_job_id
+    assert task_calls[0][1] == str(good_source)
+    assert task_calls[0][2] == "Bulk-Good.pdf"
+
+    with Session(engine) as session:
+        retried_job = session.get(ImportJob, retried_job_id)
+        assert retried_job is not None
+        assert retried_job.status == "pending"
+        assert retried_job.file_path == str(good_source)
+
+
+def test_retry_failed_jobs_bulk_skips_sources_with_active_jobs(client, patched_grinder, monkeypatch, tmp_path):
+    engine = patched_grinder["engine"]
+
+    colliding_source = tmp_path / "bulk-collision.pdf"
+    colliding_source.write_bytes(b"collision")
+    unique_source = tmp_path / "bulk-unique.pdf"
+    unique_source.write_bytes(b"unique")
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="bulk-active-collision",
+                file_path=str(colliding_source),
+                status="processing",
+            )
+        )
+        session.add(
+            ImportJob(
+                id="bulk-failed-collision",
+                file_path=str(colliding_source),
+                status="error",
+                error_message="timeout",
+            )
+        )
+        session.add(
+            ImportJob(
+                id="bulk-failed-unique",
+                file_path=str(unique_source),
+                status="error",
+                error_message="timeout",
+            )
+        )
+        session.commit()
+
+    task_calls: list[tuple[str, str, str | None]] = []
+
+    async def fake_process_file_with_job(job_id: str, _file_path: str, source_filename: str | None = None) -> None:
+        task_calls.append((job_id, _file_path, source_filename))
+
+    monkeypatch.setattr(grinder_router_module, "process_file_with_job", fake_process_file_with_job)
+    monkeypatch.setattr(grinder_router_module.asyncio, "create_task", lambda coro: _ImmediateTask(coro))
+
+    response = client.post("/api/grinder/jobs/failed/retry?limit=10")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["scanned_failed_jobs"] == 2
+    assert payload["retried_count"] == 1
+    assert payload["skipped_active_job"] == 1
+    assert payload["skipped_missing_file"] == 0
+    assert len(payload["retried_job_ids"]) == 1
+
+    assert len(task_calls) == 1
+    assert task_calls[0][1] == str(unique_source)
+
+
+def test_get_job_logs_supports_tail_and_structured_output(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+
+    with Session(engine) as session:
+        job = ImportJob(id="job-log-tail", file_path=str(tmp_path / "log-tail.pdf"), status="processing")
+        job.add_log("first log line")
+        job.add_log("second log line")
+        job.add_log("third log line")
+        session.add(job)
+        session.commit()
+
+    text_resp = client.get("/api/grinder/jobs/job-log-tail/logs?tail=2")
+    assert text_resp.status_code == 200
+    assert "first log line" not in text_resp.text
+    assert "second log line" in text_resp.text
+    assert "third log line" in text_resp.text
+
+    json_resp = client.get("/api/grinder/jobs/job-log-tail/logs?tail=2&as_text=false")
+    assert json_resp.status_code == 200
+    payload = json_resp.json()
+    assert payload["job_id"] == "job-log-tail"
+    assert payload["total_logs"] == 3
+    assert payload["returned_logs"] == 2
+    assert len(payload["logs"]) == 2
+    assert any("second log line" in line for line in payload["logs"])
+    assert any("third log line" in line for line in payload["logs"])
+
+    filtered_resp = client.get("/api/grinder/jobs/job-log-tail/logs?contains=second&as_text=false")
+    assert filtered_resp.status_code == 200
+    filtered_payload = filtered_resp.json()
+    assert filtered_payload["total_logs"] == 3
+    assert filtered_payload["returned_logs"] == 1
+    assert len(filtered_payload["logs"]) == 1
+    assert "second log line" in filtered_payload["logs"][0]
+
+
+def test_recover_stalled_jobs_marks_old_processing_jobs(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+    now = datetime.now(UTC)
+
+    with Session(engine) as session:
+        old_job = ImportJob(
+            id="job-stalled-old",
+            file_path=str(tmp_path / "stalled-old.pdf"),
+            status="processing",
+            updated_at=now - timedelta(minutes=90),
+        )
+        recent_job = ImportJob(
+            id="job-stalled-recent",
+            file_path=str(tmp_path / "stalled-recent.pdf"),
+            status="processing",
+            updated_at=now - timedelta(minutes=5),
+        )
+        session.add(old_job)
+        session.add(recent_job)
+        session.commit()
+
+    response = client.post("/api/grinder/jobs/recover-stalled?older_than_minutes=30&limit=10")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["scanned_processing_jobs"] == 2
+    assert payload["recovered_count"] == 1
+    assert payload["recovered_job_ids"] == ["job-stalled-old"]
+
+    with Session(engine) as session:
+        old_job = session.get(ImportJob, "job-stalled-old")
+        recent_job = session.get(ImportJob, "job-stalled-recent")
+
+        assert old_job is not None
+        assert old_job.status == "error"
+        assert old_job.error_message is not None
+        assert "Recovered stalled job" in old_job.error_message
+        assert any("Watchdog marked this job as stalled" in line for line in old_job.get_logs())
+
+        assert recent_job is not None
+        assert recent_job.status == "processing"
+
+
+def test_recover_and_retry_stalled_jobs_requeues_recoverable_sources(client, patched_grinder, monkeypatch, tmp_path):
+    engine = patched_grinder["engine"]
+    now = datetime.now(UTC)
+
+    stale_source = tmp_path / "stale-retry.pdf"
+    stale_source.write_bytes(b"stale-retry")
+
+    with Session(engine) as session:
+        stalled_job = ImportJob(
+            id="job-stalled-retry",
+            file_path=str(stale_source),
+            status="processing",
+        )
+        stalled_job.add_log("Starting processing of Stale-Retry.pdf")
+        stalled_job.updated_at = now - timedelta(minutes=90)
+        session.add(stalled_job)
+        session.commit()
+
+    task_calls: list[tuple[str, str, str | None]] = []
+
+    async def fake_process_file_with_job(job_id: str, _file_path: str, source_filename: str | None = None) -> None:
+        task_calls.append((job_id, _file_path, source_filename))
+
+    monkeypatch.setattr(grinder_router_module, "process_file_with_job", fake_process_file_with_job)
+    monkeypatch.setattr(grinder_router_module.asyncio, "create_task", lambda coro: _ImmediateTask(coro))
+
+    response = client.post("/api/grinder/jobs/recover-stalled/retry?older_than_minutes=30&limit=10")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["scanned_processing_jobs"] == 1
+    assert payload["recovered_count"] == 1
+    assert payload["retried_count"] == 1
+    assert payload["skipped_active_job"] == 0
+    assert payload["skipped_missing_file"] == 0
+    assert payload["recovered_job_ids"] == ["job-stalled-retry"]
+    assert len(payload["retried_job_ids"]) == 1
+
+    assert len(task_calls) == 1
+    assert task_calls[0][1] == str(stale_source)
+    assert task_calls[0][2] == "Stale-Retry.pdf"
+
+    retried_job_id = payload["retried_job_ids"][0]
+    with Session(engine) as session:
+        recovered = session.get(ImportJob, "job-stalled-retry")
+        retried = session.get(ImportJob, retried_job_id)
+
+        assert recovered is not None
+        assert recovered.status == "error"
+        assert recovered.error_message is not None
+        assert "Recovered stalled job" in recovered.error_message
+
+        assert retried is not None
+        assert retried.status == "pending"
+        assert retried.file_path == str(stale_source)
+
+
+def test_recover_and_retry_stalled_jobs_skips_missing_and_active_collisions(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+    now = datetime.now(UTC)
+
+    collision_source = tmp_path / "collision-stale.pdf"
+    collision_source.write_bytes(b"collision")
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="job-stalled-missing",
+                file_path=str(tmp_path / "missing-stale.pdf"),
+                status="processing",
+                updated_at=now - timedelta(minutes=80),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="job-stalled-collision",
+                file_path=str(collision_source),
+                status="processing",
+                updated_at=now - timedelta(minutes=75),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="job-active-collision",
+                file_path=str(collision_source),
+                status="processing",
+                updated_at=now - timedelta(minutes=5),
+            )
+        )
+        session.commit()
+
+    response = client.post("/api/grinder/jobs/recover-stalled/retry?older_than_minutes=30&limit=10")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["scanned_processing_jobs"] == 3
+    assert payload["recovered_count"] == 2
+    assert payload["retried_count"] == 0
+    assert payload["skipped_active_job"] == 1
+    assert payload["skipped_missing_file"] == 1
+    assert set(payload["recovered_job_ids"]) == {"job-stalled-missing", "job-stalled-collision"}
+
+
+def test_grinder_status_reports_stalled_jobs(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+    now = datetime.now(UTC)
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="job-status-stalled",
+                file_path=str(tmp_path / "status-stalled.pdf"),
+                status="processing",
+                updated_at=now - timedelta(minutes=45),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="job-status-pending",
+                file_path=str(tmp_path / "status-pending.pdf"),
+                status="pending",
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/grinder/status")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["active_jobs"] == 1
+    assert payload["queue_length"] == 1
+    assert payload["stalled_jobs"] == 1
+
+
+def test_purge_jobs_deletes_old_terminal_jobs_and_managed_files(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+    upload_dir = patched_grinder["upload_dir"]
+    now = datetime.now(UTC)
+
+    managed_error_file = upload_dir / "old-error.pdf"
+    managed_error_file.write_bytes(b"old-error")
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="purge-old-completed",
+                file_path=str(tmp_path / "completed.pdf"),
+                status="completed",
+                updated_at=now - timedelta(minutes=180),
+                completed_at=now - timedelta(minutes=179),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="purge-old-error",
+                file_path=str(managed_error_file),
+                status="error",
+                error_message="test error",
+                updated_at=now - timedelta(minutes=170),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="purge-recent-error",
+                file_path=str(upload_dir / "recent.pdf"),
+                status="error",
+                error_message="recent error",
+                updated_at=now - timedelta(minutes=10),
+            )
+        )
+        session.commit()
+
+    response = client.delete("/api/grinder/jobs?older_than_minutes=60&limit=10&delete_source_files=true")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["scanned_terminal_jobs"] == 3
+    assert payload["deleted_count"] == 2
+    assert set(payload["deleted_job_ids"]) == {"purge-old-completed", "purge-old-error"}
+    assert payload["deleted_source_files"] == 1
+
+    assert not managed_error_file.exists()
+
+    with Session(engine) as session:
+        assert session.get(ImportJob, "purge-old-completed") is None
+        assert session.get(ImportJob, "purge-old-error") is None
+        assert session.get(ImportJob, "purge-recent-error") is not None
+
+
+def test_purge_jobs_dry_run_keeps_records(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+    now = datetime.now(UTC)
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="purge-dry-run",
+                file_path=str(tmp_path / "dry-run.pdf"),
+                status="completed",
+                updated_at=now - timedelta(minutes=120),
+            )
+        )
+        session.commit()
+
+    response = client.delete("/api/grinder/jobs?older_than_minutes=30&dry_run=true")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["dry_run"] is True
+    assert payload["deleted_count"] == 1
+    assert payload["deleted_job_ids"] == ["purge-dry-run"]
+
+    with Session(engine) as session:
+        assert session.get(ImportJob, "purge-dry-run") is not None
+
+
+def test_purge_jobs_rejects_non_terminal_status_filter(client):
+    response = client.delete("/api/grinder/jobs?statuses=processing")
+
+    assert response.status_code == 400
+    assert "Invalid terminal status filter" in response.json()["detail"]
+
+
+def test_jobs_health_summarizes_queue_and_failure_recoverability(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+    now = datetime.now(UTC)
+
+    retriable_error_file = tmp_path / "health-retriable.pdf"
+    retriable_error_file.write_bytes(b"retriable")
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="health-pending",
+                file_path=str(tmp_path / "pending.pdf"),
+                status="pending",
+                updated_at=now - timedelta(minutes=2),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="health-processing-recent",
+                file_path=str(tmp_path / "processing-recent.pdf"),
+                status="processing",
+                updated_at=now - timedelta(minutes=5),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="health-processing-stalled",
+                file_path=str(tmp_path / "processing-stalled.pdf"),
+                status="processing",
+                updated_at=now - timedelta(minutes=80),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="health-completed-recent",
+                file_path=str(tmp_path / "completed-recent.pdf"),
+                status="completed",
+                updated_at=now - timedelta(hours=1),
+                completed_at=now - timedelta(hours=1),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="health-completed-old",
+                file_path=str(tmp_path / "completed-old.pdf"),
+                status="completed",
+                updated_at=now - timedelta(days=2),
+                completed_at=now - timedelta(days=2),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="health-error-retriable",
+                file_path=str(retriable_error_file),
+                status="error",
+                error_message="provider timeout",
+                updated_at=now - timedelta(minutes=30),
+            )
+        )
+        session.add(
+            ImportJob(
+                id="health-error-missing",
+                file_path=str(tmp_path / "missing-error.pdf"),
+                status="error",
+                error_message="parse failure",
+                updated_at=now - timedelta(minutes=40),
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/grinder/jobs/health")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["pending_jobs"] == 1
+    assert payload["processing_jobs"] == 2
+    assert payload["stalled_jobs"] == 1
+    assert payload["completed_jobs_24h"] == 1
+    assert payload["failed_jobs"] == 2
+    assert payload["retriable_failed_jobs"] == 1
+    assert payload["missing_source_failed_jobs"] == 1
+
+
+def test_failure_summary_groups_reasons_and_counts_retriable(client, patched_grinder, tmp_path):
+    engine = patched_grinder["engine"]
+
+    retriable_source = tmp_path / "failure-retriable.pdf"
+    retriable_source.write_bytes(b"retry")
+
+    with Session(engine) as session:
+        session.add(
+            ImportJob(
+                id="failure-1",
+                file_path=str(retriable_source),
+                status="error",
+                error_message="provider timeout",
+            )
+        )
+        session.add(
+            ImportJob(
+                id="failure-2",
+                file_path=str(tmp_path / "missing-1.pdf"),
+                status="error",
+                error_message="provider timeout",
+            )
+        )
+        session.add(
+            ImportJob(
+                id="failure-3",
+                file_path=str(tmp_path / "missing-2.pdf"),
+                status="error",
+                error_message="parse failed",
+            )
+        )
+        session.commit()
+
+    response = client.get("/api/grinder/jobs/failures/summary?limit=10")
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert payload["total_failed_jobs"] == 3
+    assert payload["returned_reasons"] == 2
+    assert len(payload["reasons"]) == 2
+
+    top_reason = payload["reasons"][0]
+    assert top_reason["reason"] == "provider timeout"
+    assert top_reason["count"] == 2
+    assert top_reason["retriable_count"] == 1
+
+    secondary = payload["reasons"][1]
+    assert secondary["reason"] == "parse failed"
+    assert secondary["count"] == 1
+    assert secondary["retriable_count"] == 0
 
 
 @pytest.mark.asyncio
@@ -207,11 +956,101 @@ async def test_process_file_with_job_creates_course_topics_and_challenges(patche
         assert course.topic_count == 2
         assert course.challenge_count == 2
 
-        topics = session.query(Topic).filter(Topic.course_id == course.id).all()
-        challenges = session.query(Challenge).filter(Challenge.course_id == course.id).all()
+        topics = session.exec(select(Topic).where(Topic.course_id == course.id)).all()
+        challenges = session.exec(select(Challenge).where(Challenge.course_id == course.id)).all()
 
         assert len(topics) == 2
         assert len(challenges) == 2
+
+
+@pytest.mark.asyncio
+async def test_process_file_with_job_cleans_managed_upload_source_on_success(patched_grinder, monkeypatch, tmp_path):
+    engine = patched_grinder["engine"]
+    monkeypatch.setattr(grinder_service, "MIN_APPROVED_CHALLENGES_PER_TOPIC", 1)
+
+    managed_upload_dir = tmp_path / "managed-drop"
+    managed_upload_dir.mkdir(parents=True, exist_ok=True)
+    source_file = managed_upload_dir / "cleanup-success.pdf"
+    source_file.write_bytes(b"cleanup-success-data")
+
+    monkeypatch.setattr(grinder_service, "GRINDER_UPLOAD_DIR", managed_upload_dir.resolve())
+
+    job_id = "job-cleanup-success"
+    with Session(engine) as session:
+        session.add(ImportJob(id=job_id, file_path=str(source_file), status="pending"))
+        session.commit()
+
+    monkeypatch.setattr(grinder_service, "parse_pdf", lambda _path: "Topic text")
+
+    async def fake_extract_topics(_text: str):
+        return {
+            "course_name": "Cleanup Course",
+            "topics": [{"name": "Git Basics", "order": 1}],
+            "_generation_mode": "ai",
+        }
+
+    async def fake_generate_challenges(_topic_data):
+        return {
+            "challenges": [
+                {
+                    "question": "Initialize a Git repository in the current directory.",
+                    "hint": None,
+                    "type": "command",
+                    "sandbox_type": "single",
+                    "sandbox_image": "rocky9-base",
+                    "difficulty": "easy",
+                    "validation_script": "#!/bin/bash\n[ -d .git ] && exit 0 || exit 1",
+                    "expected_output": None,
+                    "skipped_reason": None,
+                }
+            ],
+            "skipped_topics": [],
+            "_generation_mode": "ai",
+        }
+
+    async def fake_review_validation_script(_q, script, _image):
+        return {"valid": True, "issues": None, "fixed_script": script}
+
+    monkeypatch.setattr(grinder_service, "extract_topics", fake_extract_topics)
+    monkeypatch.setattr(grinder_service, "generate_challenges", fake_generate_challenges)
+    monkeypatch.setattr(grinder_service, "review_validation_script", fake_review_validation_script)
+
+    await grinder_service.process_file_with_job(job_id, str(source_file), source_filename="cleanup-success.pdf")
+
+    assert not source_file.exists()
+
+
+@pytest.mark.asyncio
+async def test_process_file_with_job_keeps_managed_source_on_error_for_retry(patched_grinder, monkeypatch, tmp_path):
+    engine = patched_grinder["engine"]
+
+    managed_upload_dir = tmp_path / "managed-drop"
+    managed_upload_dir.mkdir(parents=True, exist_ok=True)
+    source_file = managed_upload_dir / "cleanup-error.pdf"
+    source_file.write_bytes(b"cleanup-error-data")
+
+    monkeypatch.setattr(grinder_service, "GRINDER_UPLOAD_DIR", managed_upload_dir.resolve())
+
+    job_id = "job-cleanup-error"
+    with Session(engine) as session:
+        session.add(ImportJob(id=job_id, file_path=str(source_file), status="pending"))
+        session.commit()
+
+    monkeypatch.setattr(
+        grinder_service,
+        "parse_pdf",
+        lambda _path: (_ for _ in ()).throw(ValueError("parse exploded")),
+    )
+
+    with pytest.raises(ValueError, match="parse exploded"):
+        await grinder_service.process_file_with_job(job_id, str(source_file), source_filename="cleanup-error.pdf")
+
+    assert source_file.exists()
+
+    with Session(engine) as session:
+        job = session.get(ImportJob, job_id)
+        assert job is not None
+        assert job.status == "error"
 
 
 @pytest.mark.asyncio

@@ -5,7 +5,7 @@ import json
 import re
 import asyncio
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from config import get_settings
 
@@ -27,6 +27,11 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 HTTP_REFERER = "http://localhost:8080"
 
 
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
+
+
 class OpenRouterClient:
     """Async HTTP client for OpenRouter API."""
 
@@ -43,10 +48,10 @@ class OpenRouterClient:
     async def _enforce_rate_limit(self) -> None:
         """Enforce rate limiting between API calls."""
         if self._last_call_time:
-            elapsed = (datetime.utcnow() - self._last_call_time).total_seconds()
+            elapsed = (_utc_now() - self._last_call_time).total_seconds()
             if elapsed < self._rate_limit_delay:
                 await asyncio.sleep(self._rate_limit_delay - elapsed)
-        self._last_call_time = datetime.utcnow()
+        self._last_call_time = _utc_now()
 
     async def call_model(
         self,
@@ -61,7 +66,7 @@ class OpenRouterClient:
         If the primary model returns 429 (rate limited), automatically
         retries with the fallback model.
         """
-        now = datetime.utcnow()
+        now = _utc_now()
         if self._rate_limited_until and now < self._rate_limited_until:
             remaining = int((self._rate_limited_until - now).total_seconds())
             raise RuntimeError(f"OpenRouter temporarily rate-limited ({remaining}s remaining)")
@@ -116,7 +121,7 @@ class OpenRouterClient:
                     if "429" in error_text or "Too Many Requests" in error_text:
                         # Account-level rate limits usually affect all free models,
                         # so fail fast and let the grinder fallback logic continue.
-                        self._rate_limited_until = datetime.utcnow() + timedelta(seconds=90)
+                        self._rate_limited_until = _utc_now() + timedelta(seconds=90)
                         break
 
                     # Provider-side transient failures and empty payloads are worth a short retry.

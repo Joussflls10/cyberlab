@@ -1,7 +1,7 @@
 """Configuration and environment variables for CyberLab backend."""
 
 from typing import List
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from functools import lru_cache
 
@@ -26,17 +26,18 @@ class Settings(BaseSettings):
     # Grinder
     GRINDER_UPLOAD_DIR: str = "./drop"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
     @field_validator("OPENROUTER_API_KEY")
     @classmethod
     def validate_openrouter_api_key(cls, value: str) -> str:
         if not value or not value.strip():
-            raise ValueError("OPENROUTER_API_KEY must be set in backend/.env")
+            raise ValueError("OPENROUTER_API_KEY must be set in .env")
         return value
 
     @property

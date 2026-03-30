@@ -3,7 +3,7 @@
 import docker
 from docker.types import ContainerSpec, Resources
 from typing import Optional, Dict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import random
 from pathlib import Path
 
@@ -13,6 +13,11 @@ from docker.errors import ImageNotFound, APIError, BuildError, DockerException
 SANDBOX_NETWORK = "cyberlab-sandbox"
 DOCKER_CONTEXT_ROOT = Path(__file__).resolve().parents[2] / "docker"
 DEFAULT_FALLBACK_IMAGE = "rocky9-base"
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
 
 
 def ensure_sandbox_network(client=None):
@@ -121,7 +126,7 @@ class SandboxService:
                 labels={
                     self.label_key: self.label_value,
                     "challenge_id": challenge_id,
-                    "started_at": datetime.utcnow().isoformat(),
+                    "started_at": _utc_now().isoformat(),
                 },
                 mem_limit="512m",
                 cpu_period=100000,
@@ -223,7 +228,7 @@ class SandboxService:
         Returns:
             Dict with count of cleaned containers and list of container IDs
         """
-        cutoff_time = datetime.utcnow() - timedelta(hours=2)
+        cutoff_time = _utc_now() - timedelta(hours=2)
         cleaned = []
 
         containers = self.client.containers.list(

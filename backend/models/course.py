@@ -2,7 +2,12 @@
 
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
 
 
 class Course(SQLModel, table=True):
@@ -18,8 +23,8 @@ class Course(SQLModel, table=True):
     topic_count: int = Field(default=0)
     challenge_count: int = Field(default=0)
     is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utc_now, index=True)
+    updated_at: datetime = Field(default_factory=_utc_now)
 
     # Relationships
     topics: List["Topic"] = Relationship(back_populates="course", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
@@ -39,7 +44,7 @@ class Topic(SQLModel, table=True):
     course_id: str = Field(foreign_key="courses.id", index=True, ondelete="CASCADE")
     name: str = Field(max_length=200)
     order: int = Field(default=0, index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utc_now)
 
     # Relationships
     course: Optional[Course] = Relationship(back_populates="topics")

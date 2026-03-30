@@ -2,7 +2,12 @@
 
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
-from datetime import datetime
+from datetime import UTC, datetime
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
 
 
 class UserProgress(SQLModel, table=True):
@@ -94,7 +99,7 @@ def create_or_update_progress(
         for key, value in kwargs.items():
             if hasattr(progress, key):
                 setattr(progress, key, value)
-        progress.last_attempted_at = datetime.utcnow()
+        progress.last_attempted_at = _utc_now()
     else:
         progress = UserProgress(
             id=id,
@@ -128,7 +133,7 @@ def mark_challenge_completed(
         challenge_id=challenge_id,
         status="passed",
         attempts=1,
-        passed_at=datetime.utcnow(),
+        passed_at=_utc_now(),
     )
     return progress
 

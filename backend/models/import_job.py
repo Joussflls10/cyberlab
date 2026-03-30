@@ -1,9 +1,14 @@
 """ImportJob model for tracking async file processing."""
 
 from typing import List, Optional
-from datetime import datetime
+from datetime import UTC, datetime
 from sqlmodel import SQLModel, Field
 import json
+
+
+def _utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(UTC)
 
 
 class ImportJob(SQLModel, table=True):
@@ -20,19 +25,19 @@ class ImportJob(SQLModel, table=True):
     error_message: Optional[str] = Field(default=None)
     topics_count: int = Field(default=0)
     challenges_count: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utc_now)
+    updated_at: datetime = Field(default_factory=_utc_now)
     completed_at: Optional[datetime] = Field(default=None)
     
     def add_log(self, message: str, level: str = "info") -> None:
         """Add a log entry with timestamp."""
         logs_list = json.loads(self.logs)
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = _utc_now().isoformat()
         logs_list.append(f"[{timestamp}] [{level.upper()}] {message}")
         # Keep last 1000 log lines to prevent unbounded growth
         logs_list = logs_list[-1000:]
         self.logs = json.dumps(logs_list)
-        self.updated_at = datetime.utcnow()
+        self.updated_at = _utc_now()
     
     def get_logs(self) -> List[str]:
         """Get logs as a list of strings."""
@@ -41,4 +46,4 @@ class ImportJob(SQLModel, table=True):
     def update_progress(self, percent: int) -> None:
         """Update progress percentage."""
         self.progress_percent = min(100, max(0, percent))
-        self.updated_at = datetime.utcnow()
+        self.updated_at = _utc_now()
